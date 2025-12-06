@@ -38,7 +38,7 @@ A beautiful Android app that scans QR codes and creates personalized digital cop
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/qr-card-creator.git
+   git clone https://github.com/devil1716/qr-card-creator.git
    cd qr-card-creator
    ```
 
@@ -91,15 +91,31 @@ This repository includes a GitHub Actions workflow that automatically builds the
 ## Project Structure 📁
 
 ```
-qr-card-creator/
-├── App.js              # Main application component
-├── app.json            # Expo configuration
-├── package.json        # Dependencies
-├── assets/             # Images and icons
+qr-scanner-app/
+├── components/          # Reusable UI components
+│   ├── ErrorBoundary.js
+│   ├── HistoryScreen.js
+│   ├── HomeScreen.js
+│   ├── LoadingScreen.js
+│   ├── PermissionScreen.js
+│   ├── QRCard.js
+│   └── QRScanner.js
+├── constants/         # App constants
+│   ├── colors.js
+│   └── storage.js
+├── utils/             # Utility functions
+│   ├── errors.js
+│   └── storage.js
+├── assets/            # Images and icons
 │   ├── icon.png
 │   ├── splash-icon.png
 │   └── adaptive-icon.png
-└── README.md           # This file
+├── App.js             # Main application component
+├── index.js           # Entry point
+├── app.json           # Expo configuration
+├── package.json       # Dependencies
+├── README.md          # This file
+└── IMPROVEMENTS.md    # Code improvements documentation
 ```
 
 ## Permissions Required 🔐

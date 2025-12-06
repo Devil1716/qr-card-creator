@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 
@@ -73,6 +74,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+PermissionScreen.propTypes = {
+  onRequestPermission: PropTypes.func.isRequired,
+};
 
 export default PermissionScreen;
 

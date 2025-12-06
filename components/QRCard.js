@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput } from 'react-native';
+import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
@@ -11,9 +12,6 @@ const QRCard = ({
   userName, 
   onNameChange, 
   viewShotRef,
-  onSave,
-  onShare,
-  onScanAgain,
   isLoading = false,
 }) => {
   return (
@@ -176,6 +174,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+QRCard.propTypes = {
+  qrData: PropTypes.string.isRequired,
+  userName: PropTypes.string,
+  onNameChange: PropTypes.func.isRequired,
+  viewShotRef: PropTypes.object,
+  isLoading: PropTypes.bool,
+};
+
+QRCard.defaultProps = {
+  userName: '',
+  isLoading: false,
+};
 
 export default QRCard;
 

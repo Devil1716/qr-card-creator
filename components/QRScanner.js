@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import PropTypes from 'prop-types';
 import { CameraView } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import Animated from 'react-native';
 import { Colors } from '../constants/colors';
 
 const QRScanner = ({ onBarcodeScanned, onBack, scanned }) => {
@@ -53,7 +53,7 @@ const QRScanner = ({ onBarcodeScanned, onBack, scanned }) => {
           <View style={[styles.corner, styles.topLeft]} />
           <View style={[styles.corner, styles.topRight]} />
           <View style={[styles.corner, styles.bottomLeft]} />
-          <View style={[styles.corner, styles.bottomRight}] />
+          <View style={[styles.corner, styles.bottomRight]} />
 
           <Animated.View
             style={[
@@ -165,6 +165,12 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
 });
+
+QRScanner.propTypes = {
+  onBarcodeScanned: PropTypes.func.isRequired,
+  onBack: PropTypes.func.isRequired,
+  scanned: PropTypes.bool.isRequired,
+};
 
 export default QRScanner;
 

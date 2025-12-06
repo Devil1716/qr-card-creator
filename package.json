@@ -25,5 +25,22 @@
     "react-native-svg": "^15.15.1",
     "react-native-view-shot": "^4.0.3"
   },
-  "private": true
+  "devDependencies": {
+    "prop-types": "^15.8.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devil1716/qr-card-creator.git"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "qr-code",
+    "qr-scanner",
+    "mobile-app",
+    "android",
+    "ios"
+  ],
+  "author": "devil1716",
+  "license": "MIT"
 }

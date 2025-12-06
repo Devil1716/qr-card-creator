@@ -1,30 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
   Alert,
   SafeAreaView,
   StatusBar,
   Animated,
-  Dimensions,
-  Platform,
   ScrollView,
-  Image,
+  TouchableOpacity,
+  View,
+  Text,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import QRCode from 'react-native-qrcode-svg';
+import { useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width, height } = Dimensions.get('window');
-const STORAGE_KEY = '@qr_cards_storage';
+// Components
+import LoadingScreen from './components/LoadingScreen';
+import PermissionScreen from './components/PermissionScreen';
+import QRScanner from './components/QRScanner';
+import QRCard from './components/QRCard';
+import HistoryScreen from './components/HistoryScreen';
+import HomeScreen from './components/HomeScreen';
+
+// Utils & Constants
+import { loadSavedCards, addCardToStorage } from './utils/storage';
+import { ErrorMessages, SuccessMessages, getErrorMessage } from './utils/errors';
+import { Colors } from './constants/colors';
+import { CARD_DEFAULTS } from './constants/storage';
 
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -36,66 +41,19 @@ export default function App() {
   const [showScanner, setShowScanner] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [savedCards, setSavedCards] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const viewShotRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scanLineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Load saved cards on startup
   useEffect(() => {
-    loadSavedCards();
-
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+    initializeApp();
   }, []);
 
-  const loadSavedCards = async () => {
-    try {
-      const storedCards = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedCards !== null) {
-        setSavedCards(JSON.parse(storedCards));
-      }
-    } catch (e) {
-      console.error('Failed to load cards', e);
-    }
-  };
-
-  const saveCardToStorage = async (newCard) => {
-    try {
-      const updatedCards = [...savedCards, newCard];
-      setSavedCards(updatedCards);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedCards));
-    } catch (e) {
-      console.error('Failed to save card', e);
-    }
-  };
-
+  // Pulse animation for buttons
   useEffect(() => {
-    if (showScanner) {
-      // Animate scan line
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(scanLineAnim, {
-            toValue: 1,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scanLineAnim, {
-            toValue: 0,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    }
-  }, [showScanner]);
-
-  useEffect(() => {
-    // Pulse animation for buttons
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -112,8 +70,30 @@ export default function App() {
     ).start();
   }, []);
 
+  const initializeApp = async () => {
+    try {
+      const cards = await loadSavedCards();
+      setSavedCards(cards);
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+    } catch (error) {
+      console.error('Failed to initialize app:', error);
+      Alert.alert('Error', ErrorMessages.LOAD_FAILED);
+    }
+  };
+
   const handleBarcodeScanned = ({ type, data }) => {
-    if (!scanned) {
+    if (!scanned && data) {
+      // Validate QR data length
+      if (data.length > CARD_DEFAULTS.MAX_DATA_LENGTH) {
+        Alert.alert('Error', 'QR code data is too long. Maximum length is 500 characters.');
+        return;
+      }
+      
       setScanned(true);
       setScannedData(data);
       setShowScanner(false);
@@ -122,6 +102,12 @@ export default function App() {
   };
 
   const saveQRCardToGallery = async () => {
+    if (!viewShotRef.current) {
+      Alert.alert('Error', 'Unable to capture card image.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       // 1. Capture the image
       const tempUri = await viewShotRef.current.capture();
@@ -131,59 +117,97 @@ export default function App() {
       const internalUri = `${FileSystem.documentDirectory}${fileName}`;
       await FileSystem.copyAsync({
         from: tempUri,
-        to: internalUri
+        to: internalUri,
       });
 
       // 3. Save to Local History
       const newCard = {
         id: Date.now(),
         data: scannedData,
-        name: userName || 'Anonymous',
+        name: userName || CARD_DEFAULTS.ANONYMOUS_NAME,
         timestamp: new Date().toLocaleString(),
         imageUri: internalUri,
       };
-      await saveCardToStorage(newCard);
+      
+      const success = await addCardToStorage(newCard, savedCards);
+      if (success) {
+        setSavedCards(prev => [...prev, newCard]);
+      }
 
       // 4. Try saving to Gallery (User Convenience)
       try {
         if (!mediaPermission?.granted) {
           const { granted } = await requestMediaPermission();
-          // We don't block if not granted, just skip gallery
+          if (!granted) {
+            // Don't block if not granted, just skip gallery
+            Alert.alert(
+              'Saved to App',
+              SuccessMessages.SAVED_TO_APP + ' (Note: Gallery save requires permission).',
+              [
+                { text: 'OK' },
+                { text: 'Share Image', onPress: () => shareImage(tempUri) },
+              ]
+            );
+            return;
+          }
         }
 
-        // This might fail in Expo Go on Android 11+
         await MediaLibrary.createAssetAsync(tempUri);
-        Alert.alert('✅ Saved!', 'Card saved to History & Gallery!');
+        Alert.alert('✅ Success', SuccessMessages.SAVED_TO_GALLERY);
       } catch (galleryError) {
         // If gallery fails, just notify that it's in history
         Alert.alert(
           'Saved to App',
-          'Card saved to internal History. (Note: Gallery save requires full app or permission).',
+          SuccessMessages.SAVED_TO_APP + ' (Note: Gallery save may require full app or permission).',
           [
             { text: 'OK' },
-            { text: 'Share Image', onPress: () => Sharing.shareAsync(tempUri) }
+            { text: 'Share Image', onPress: () => shareImage(tempUri) },
           ]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save card.');
-      console.error(error);
+      const errorMessage = getErrorMessage(error, ErrorMessages.SAVE_FAILED);
+      Alert.alert('Error', errorMessage);
+      console.error('Save error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const shareImage = async (uri) => {
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      Alert.alert('Error', ErrorMessages.SHARE_FAILED);
+      console.error('Share error:', error);
     }
   };
 
   const shareQRCard = async () => {
+    if (!viewShotRef.current) {
+      Alert.alert('Error', 'Unable to capture card image.');
+      return;
+    }
+
     try {
       const uri = await viewShotRef.current.capture();
-      await Sharing.shareAsync(uri);
+      await shareImage(uri);
     } catch (error) {
-      Alert.alert('Error', 'Failed to share the QR card. Please try again.');
-      console.error(error);
+      const errorMessage = getErrorMessage(error, ErrorMessages.SHARE_FAILED);
+      Alert.alert('Error', errorMessage);
+      console.error('Share error:', error);
     }
   };
 
   const resetScanner = () => {
     setScanned(false);
     setScannedData('');
+    setUserName('');
     setShowQRCard(false);
   };
 
@@ -192,212 +216,110 @@ export default function App() {
     setScanned(false);
   };
 
+  const handleCardDeleted = async () => {
+    const cards = await loadSavedCards();
+    setSavedCards(cards);
+  };
+
+  // Loading state
   if (!permission) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Animated.View style={[styles.loadingCircle, { opacity: fadeAnim }]}>
-            <Ionicons name="qr-code-outline" size={80} color="#667eea" />
-          </Animated.View>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
+        <LoadingScreen animatedValue={fadeAnim} />
       </SafeAreaView>
     );
   }
 
+  // Permission denied state
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <View style={styles.permissionContainer}>
-          <View style={styles.permissionIconContainer}>
-            <Ionicons name="camera-outline" size={100} color="#667eea" />
-          </View>
-          <Text style={styles.permissionTitle}>Camera Permission Required</Text>
-          <Text style={styles.permissionText}>
-            We need your camera permission to scan QR codes and create digital copies.
-          </Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={requestPermission}
-          >
-            <Ionicons name="checkmark-circle" size={24} color="#fff" />
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
-          </TouchableOpacity>
-        </View>
+        <PermissionScreen onRequestPermission={requestPermission} />
       </SafeAreaView>
     );
   }
 
+  // Scanner screen
   if (showScanner) {
     return (
-      <View style={styles.scannerContainer}>
+      <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <CameraView
-          style={StyleSheet.absoluteFill}
-          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr'],
-          }}
+        <QRScanner
+          onBarcodeScanned={handleBarcodeScanned}
+          onBack={() => setShowScanner(false)}
+          scanned={scanned}
         />
-        <View style={styles.scannerOverlay}>
-          <View style={styles.headerPill}>
-            <TouchableOpacity
-              style={styles.backButtonPill}
-              onPress={() => setShowScanner(false)}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.scannerTitle}>Scan QR Code</Text>
-          </View>
-
-          <View style={styles.scannerFrame}>
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
-
-            <Animated.View
-              style={[
-                styles.scanLine,
-                {
-                  transform: [
-                    {
-                      translateY: scanLineAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 250],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.hintPill}>
-            <Text style={styles.scannerHint}>
-              Align QR code within the frame
-            </Text>
-          </View>
-        </View>
       </View>
     );
   }
 
+  // History screen
   if (showHistory) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <View style={styles.cardHeader}>
-          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.backButtonCard}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.cardHeaderTitle}>Scanned History</Text>
-        </View>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          {savedCards.map((card, index) => (
-            <View key={card.id || index} style={styles.historyCard}>
-              {card.imageUri ? (
-                <Image
-                  source={{ uri: card.imageUri }}
-                  style={styles.historyCardImage}
-                  resizeMode="cover"
-                />
-              ) : null}
-              <View style={styles.historyCardContent}>
-                <View style={styles.historyCardHeader}>
-                  <Ionicons name="qr-code" size={20} color="#667eea" />
-                  <Text style={styles.historyCardName}>{card.name}</Text>
-                </View>
-                <Text style={styles.historyCardData} numberOfLines={1}>{card.data}</Text>
-                <Text style={styles.historyCardTime}>{card.timestamp}</Text>
-              </View>
-            </View>
-          ))}
-          {savedCards.length === 0 && (
-            <Text style={styles.emptyText}>No saved cards yet.</Text>
-          )}
-        </ScrollView>
+        <HistoryScreen
+          cards={savedCards}
+          onBack={() => setShowHistory(false)}
+          onCardDeleted={handleCardDeleted}
+        />
       </SafeAreaView>
     );
   }
 
+  // QR Card screen
   if (showQRCard) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.cardHeader}>
-            <TouchableOpacity onPress={resetScanner} style={styles.backButtonCard}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+            <TouchableOpacity 
+              onPress={resetScanner} 
+              style={styles.backButtonCard}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={styles.cardHeaderTitle}>Your Digital QR Card</Text>
           </View>
 
-          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-            <View style={styles.qrCard}>
-              <View style={styles.qrCardGradient}>
-                <View style={styles.cardTopPattern} />
-              </View>
-
-              <View style={styles.qrCardContent}>
-                <View style={styles.cardBadge}>
-                  <Ionicons name="shield-checkmark" size={16} color="#667eea" />
-                  <Text style={styles.cardBadgeText}>VERIFIED</Text>
-                </View>
-
-                <View style={styles.qrCodeContainer}>
-                  <QRCode
-                    value={scannedData || 'No Data'}
-                    size={180}
-                    color="#1a1a2e"
-                    backgroundColor="#fff"
-                  />
-                </View>
-
-                <View style={styles.userInfoContainer}>
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="Enter Your Name"
-                    placeholderTextColor="#888"
-                    value={userName}
-                    onChangeText={setUserName}
-                  />
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.dataContainer}>
-                    <Text style={styles.dataLabel}>QR CODE DATA</Text>
-                    <Text style={styles.dataValue} numberOfLines={3}>
-                      {scannedData}
-                    </Text>
-                  </View>
-
-                  <View style={styles.timestampContainer}>
-                    <Ionicons name="time-outline" size={14} color="#888" />
-                    <Text style={styles.timestamp}>
-                      Created: {new Date().toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </ViewShot>
+          <QRCard
+            qrData={scannedData}
+            userName={userName}
+            onNameChange={setUserName}
+            viewShotRef={viewShotRef}
+            isLoading={isLoading}
+          />
 
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.saveButton]}
               onPress={saveQRCardToGallery}
+              disabled={isLoading}
+              accessibilityLabel="Save QR card"
+              accessibilityRole="button"
             >
-              <Ionicons name="download-outline" size={24} color="#fff" />
-              <Text style={styles.actionButtonText}>Save Card</Text>
+              <Ionicons 
+                name={isLoading ? "hourglass-outline" : "download-outline"} 
+                size={24} 
+                color={Colors.text} 
+              />
+              <Text style={styles.actionButtonText}>
+                {isLoading ? 'Saving...' : 'Save Card'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.actionButton, styles.shareButton]}
               onPress={shareQRCard}
+              disabled={isLoading}
+              accessibilityLabel="Share QR card"
+              accessibilityRole="button"
             >
-              <Ionicons name="share-outline" size={24} color="#fff" />
+              <Ionicons name="share-outline" size={24} color={Colors.text} />
               <Text style={styles.actionButtonText}>Share</Text>
             </TouchableOpacity>
           </View>
@@ -408,8 +330,11 @@ export default function App() {
               resetScanner();
               startScanner();
             }}
+            disabled={isLoading}
+            accessibilityLabel="Scan another QR code"
+            accessibilityRole="button"
           >
-            <Ionicons name="scan-outline" size={24} color="#667eea" />
+            <Ionicons name="scan-outline" size={24} color={Colors.primary} />
             <Text style={styles.scanAgainText}>Scan Another Code</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -421,63 +346,13 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <Animated.View style={[styles.homeContainer, { opacity: fadeAnim }]}>
-        <View style={styles.heroSection}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="qr-code" size={60} color="#fff" />
-            </View>
-          </View>
-          <Text style={styles.appTitle}>QR Card Creator</Text>
-          <Text style={styles.appSubtitle}>
-            Scan, Personalize & Save Your Digital QR Cards
-          </Text>
-        </View>
-
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="scan" size={24} color="#667eea" />
-            </View>
-            <Text style={styles.featureText}>Quick QR Scan</Text>
-          </View>
-
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="person" size={24} color="#764ba2" />
-            </View>
-            <Text style={styles.featureText}>Add Your Name</Text>
-          </View>
-
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Ionicons name="save" size={24} color="#f093fb" />
-            </View>
-            <Text style={styles.featureText}>Save & Share</Text>
-          </View>
-        </View>
-
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity
-            style={styles.scanButton}
-            onPress={startScanner}
-            activeOpacity={0.8}
-          >
-            <View style={styles.scanButtonInner}>
-              <Ionicons name="scan-circle" size={32} color="#fff" />
-              <Text style={styles.scanButtonText}>Start Scanning</Text>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {savedCards.length > 0 && (
-          <TouchableOpacity style={styles.savedCardsSection} onPress={() => setShowHistory(true)}>
-            <Text style={styles.savedCardsTitle}>
-              <Ionicons name="folder-open" size={16} color="#667eea" /> Saved Cards: {savedCards.length} (Tap to View)
-            </Text>
-          </TouchableOpacity>
-        )}
-      </Animated.View>
+      <HomeScreen
+        onStartScanning={startScanner}
+        onViewHistory={() => setShowHistory(true)}
+        savedCardsCount={savedCards.length}
+        fadeAnim={fadeAnim}
+        pulseAnim={pulseAnim}
+      />
     </SafeAreaView>
   );
 }
@@ -485,259 +360,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f1a',
+    backgroundColor: Colors.background,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingBottom: 30,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 18,
-    marginTop: 20,
-    fontWeight: '500',
-  },
-  permissionContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-  },
-  permissionIconContainer: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
-    borderWidth: 2,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
-  },
-  permissionTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  permissionText: {
-    color: '#aaa',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
-  },
-  permissionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#667eea',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 30,
-    gap: 10,
-  },
-  permissionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  scannerContainer: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
-  },
-  scannerOverlay: {
-    flex: 1,
-    justifyContent: 'space-between', // Distribute top/center/bottom
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  headerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 30,
-    gap: 15,
-  },
-  backButtonPill: {
-    padding: 5,
-  },
-  scannerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  hintPill: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  backButton: {
-    // Deprecated
-    display: 'none',
-  },
-  scannerFrame: {
-    width: 280,
-    height: 280,
-    borderRadius: 20,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  corner: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: '#667eea',
-  },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 20,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 20,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 20,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 20,
-  },
-  scanLine: {
-    width: '100%',
-    height: 3,
-    backgroundColor: '#667eea',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  scannerHint: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  homeContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
-  heroSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoContainer: {
-    marginBottom: 20,
-  },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#667eea',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  appTitle: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  appSubtitle: {
-    color: '#888',
-    fontSize: 16,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 40,
-  },
-  featureItem: {
-    alignItems: 'center',
-  },
-  featureIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  featureText: {
-    color: '#aaa',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  scanButton: {
-    alignSelf: 'center',
-    borderRadius: 30,
-    overflow: 'hidden',
-  },
-  scanButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#667eea',
-    paddingHorizontal: 40,
-    paddingVertical: 18,
-    gap: 12,
-    borderRadius: 30,
-  },
-  scanButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  savedCardsSection: {
-    marginTop: 30,
-    alignItems: 'center',
-  },
-  savedCardsTitle: {
-    color: '#667eea',
-    fontSize: 14,
-    fontWeight: '500',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -750,122 +377,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.overlayLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cardHeaderTitle: {
-    color: '#fff',
+    color: Colors.text,
     fontSize: 20,
     fontWeight: 'bold',
     marginLeft: 15,
-  },
-  qrCard: {
-    margin: 20,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  qrCardGradient: {
-    height: 80,
-    backgroundColor: '#667eea',
-    position: 'relative',
-  },
-  cardTopPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  qrCardContent: {
-    padding: 25,
-    alignItems: 'center',
-    marginTop: -40,
-  },
-  cardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f4ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 15,
-    gap: 5,
-  },
-  cardBadgeText: {
-    color: '#667eea',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  qrCodeContainer: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#eee',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-    marginBottom: 20,
-  },
-  userInfoContainer: {
-    width: '100%',
-  },
-  nameInput: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    textAlign: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 2,
-    borderBottomColor: '#667eea',
-    marginBottom: 15,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 10,
-  },
-  dataContainer: {
-    backgroundColor: '#f8f9ff',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 15,
-  },
-  dataLabel: {
-    fontSize: 10,
-    color: '#888',
-    letterSpacing: 1,
-    marginBottom: 5,
-  },
-  dataValue: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
-  },
-  timestampContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  timestamp: {
-    color: '#888',
-    fontSize: 12,
   },
   actionButtons: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     gap: 15,
+    marginTop: 20,
   },
   actionButton: {
     flex: 1,
@@ -877,13 +403,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   saveButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.success,
   },
   shareButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: Colors.primary,
   },
   actionButtonText: {
-    color: '#fff',
+    color: Colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -896,54 +422,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 15,
     borderWidth: 2,
-    borderColor: '#667eea',
+    borderColor: Colors.primary,
     gap: 8,
   },
   scanAgainText: {
-    color: '#667eea',
+    color: Colors.primary,
     fontSize: 16,
     fontWeight: '600',
-  },
-  historyCard: {
-    backgroundColor: '#1a1a2e',
-    marginHorizontal: 20,
-    marginBottom: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-    overflow: 'hidden',
-  },
-  historyCardImage: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#000',
-  },
-  historyCardContent: {
-    padding: 15,
-  },
-  historyCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 10,
-  },
-  historyCardName: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  historyCardData: {
-    color: '#aaa',
-    fontSize: 12,
-    marginBottom: 5,
-  },
-  historyCardTime: {
-    color: '#666',
-    fontSize: 10,
-  },
-  emptyText: {
-    color: '#888',
-    textAlign: 'center',
-    marginTop: 50,
   },
 });

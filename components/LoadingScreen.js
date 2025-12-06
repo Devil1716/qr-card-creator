@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
-import Animated from 'react-native';
 import { Colors } from '../constants/colors';
 
 const LoadingScreen = ({ animatedValue }) => {
@@ -38,6 +38,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+LoadingScreen.propTypes = {
+  animatedValue: PropTypes.instanceOf(Animated.Value).isRequired,
+};
 
 export default LoadingScreen;
 
