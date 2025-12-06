@@ -71,6 +71,15 @@ eas login
 eas build --platform android
 ```
 
+### Automated GitHub Build 🤖
+
+This repository includes a GitHub Actions workflow that automatically builds the Android APK whenever you push code.
+
+1. Go to the **Actions** tab in this repository.
+2. Click on the latest **Android Build** workflow run.
+3. Scroll down to the **Artifacts** section.
+4. Download the `app-release.zip` file, extract it, and install the APK on your device.
+
 ## Usage 📖
 
 1. **Launch the app** - You'll see the home screen with a "Start Scanning" button

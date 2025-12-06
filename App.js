@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   Text,
@@ -22,6 +23,7 @@ import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
+const STORAGE_KEY = '@qr_cards_storage';
 
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -39,12 +41,35 @@ export default function App() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    loadSavedCards();
+
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
       useNativeDriver: true,
     }).start();
   }, []);
+
+  const loadSavedCards = async () => {
+    try {
+      const storedCards = await AsyncStorage.getItem(STORAGE_KEY);
+      if (storedCards !== null) {
+        setSavedCards(JSON.parse(storedCards));
+      }
+    } catch (e) {
+      console.error('Failed to load cards', e);
+    }
+  };
+
+  const saveCardToStorage = async (newCard) => {
+    try {
+      const updatedCards = [...savedCards, newCard];
+      setSavedCards(updatedCards);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedCards));
+    } catch (e) {
+      console.error('Failed to save card', e);
+    }
+  };
 
   useEffect(() => {
     if (showScanner) {
@@ -113,7 +138,8 @@ export default function App() {
         name: userName || 'Anonymous',
         timestamp: new Date().toLocaleString(),
       };
-      setSavedCards([...savedCards, newCard]);
+      // Save locally
+      await saveCardToStorage(newCard);
 
       Alert.alert(
         '✅ Success!',
