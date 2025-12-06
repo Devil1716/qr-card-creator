@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   Dimensions,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
@@ -21,6 +21,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const STORAGE_KEY = '@qr_cards_storage';
@@ -41,6 +42,7 @@ export default function App() {
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Load saved cards on startup
   useEffect(() => {
     loadSavedCards();
 
@@ -121,40 +123,50 @@ export default function App() {
 
   const saveQRCardToGallery = async () => {
     try {
-      // 1. Save to Local History
+      // 1. Capture the image
+      const tempUri = await viewShotRef.current.capture();
+
+      // 2. Save image permanently to App Storage
+      const fileName = `card_${Date.now()}.png`;
+      const internalUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.copyAsync({
+        from: tempUri,
+        to: internalUri
+      });
+
+      // 3. Save to Local History
       const newCard = {
         id: Date.now(),
         data: scannedData,
         name: userName || 'Anonymous',
         timestamp: new Date().toLocaleString(),
+        imageUri: internalUri,
       };
       await saveCardToStorage(newCard);
 
-      // 2. Capture and Save Image
-      const uri = await viewShotRef.current.capture();
-
+      // 4. Try saving to Gallery (User Convenience)
       try {
         if (!mediaPermission?.granted) {
           const { granted } = await requestMediaPermission();
-          if (!granted) {
-            throw new Error('Permission not granted');
-          }
+          // We don't block if not granted, just skip gallery
         }
-        await MediaLibrary.createAssetAsync(uri);
-        Alert.alert('✅ Success!', 'Saved to Gallery!');
+
+        // This might fail in Expo Go on Android 11+
+        await MediaLibrary.createAssetAsync(tempUri);
+        Alert.alert('✅ Saved!', 'Card saved to History & Gallery!');
       } catch (galleryError) {
-        console.log("Gallery save failed, trying share fallback", galleryError);
+        // If gallery fails, just notify that it's in history
         Alert.alert(
-          'Saved to History',
-          'Gallery save is restricted in Expo Go. Tap "Share" to save the image manually.',
+          'Saved to App',
+          'Card saved to internal History. (Note: Gallery save requires full app or permission).',
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Share Image', onPress: () => Sharing.shareAsync(uri) }
+            { text: 'OK' },
+            { text: 'Share Image', onPress: () => Sharing.shareAsync(tempUri) }
           ]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to process card.');
+      Alert.alert('Error', 'Failed to save card.');
       console.error(error);
     }
   };
@@ -269,6 +281,44 @@ export default function App() {
     );
   }
 
+  if (showHistory) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.cardHeader}>
+          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.backButtonCard}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.cardHeaderTitle}>Scanned History</Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {savedCards.map((card, index) => (
+            <View key={card.id || index} style={styles.historyCard}>
+              {card.imageUri ? (
+                <Image
+                  source={{ uri: card.imageUri }}
+                  style={styles.historyCardImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+              <View style={styles.historyCardContent}>
+                <View style={styles.historyCardHeader}>
+                  <Ionicons name="qr-code" size={20} color="#667eea" />
+                  <Text style={styles.historyCardName}>{card.name}</Text>
+                </View>
+                <Text style={styles.historyCardData} numberOfLines={1}>{card.data}</Text>
+                <Text style={styles.historyCardTime}>{card.timestamp}</Text>
+              </View>
+            </View>
+          ))}
+          {savedCards.length === 0 && (
+            <Text style={styles.emptyText}>No saved cards yet.</Text>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (showQRCard) {
     return (
       <SafeAreaView style={styles.container}>
@@ -337,7 +387,7 @@ export default function App() {
               onPress={saveQRCardToGallery}
             >
               <Ionicons name="download-outline" size={24} color="#fff" />
-              <Text style={styles.actionButtonText}>Save to Gallery</Text>
+              <Text style={styles.actionButtonText}>Save Card</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -359,35 +409,6 @@ export default function App() {
             <Ionicons name="scan-outline" size={24} color="#667eea" />
             <Text style={styles.scanAgainText}>Scan Another Code</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  if (showHistory) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={styles.cardHeader}>
-          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.backButtonCard}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.cardHeaderTitle}>Scanned History</Text>
-        </View>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          {savedCards.map((card, index) => (
-            <View key={card.id || index} style={styles.historyCard}>
-              <View style={styles.historyCardHeader}>
-                <Ionicons name="qr-code" size={20} color="#667eea" />
-                <Text style={styles.historyCardName}>{card.name}</Text>
-              </View>
-              <Text style={styles.historyCardData} numberOfLines={1}>{card.data}</Text>
-              <Text style={styles.historyCardTime}>{card.timestamp}</Text>
-            </View>
-          ))}
-          {savedCards.length === 0 && (
-            <Text style={styles.emptyText}>No saved cards yet.</Text>
-          )}
         </ScrollView>
       </SafeAreaView>
     );
@@ -541,9 +562,9 @@ const styles = StyleSheet.create({
   },
   scannerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    // Removed background color so camera shows through, handled by absolute positioning logic
   },
   backButton: {
     position: 'absolute',
@@ -555,12 +576,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   scannerTitle: {
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 40,
+    marginTop: 60, // Push down
   },
   scannerFrame: {
     width: 280,
@@ -873,11 +896,19 @@ const styles = StyleSheet.create({
   historyCard: {
     backgroundColor: '#1a1a2e',
     marginHorizontal: 20,
-    marginBottom: 10,
-    padding: 15,
+    marginBottom: 15,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#333',
+    overflow: 'hidden',
+  },
+  historyCardImage: {
+    width: '100%',
+    height: 150,
+    backgroundColor: '#333',
+  },
+  historyCardContent: {
+    padding: 15,
   },
   historyCardHeader: {
     flexDirection: 'row',
