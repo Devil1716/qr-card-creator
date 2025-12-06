@@ -18,7 +18,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
