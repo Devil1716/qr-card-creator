@@ -241,14 +241,15 @@ export default function App() {
           }}
         />
         <View style={styles.scannerOverlay}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => setShowScanner(false)}
-          >
-            <Ionicons name="arrow-back" size={28} color="#fff" />
-          </TouchableOpacity>
-
-          <Text style={styles.scannerTitle}>Scan QR Code</Text>
+          <View style={styles.headerPill}>
+            <TouchableOpacity
+              style={styles.backButtonPill}
+              onPress={() => setShowScanner(false)}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.scannerTitle}>Scan QR Code</Text>
+          </View>
 
           <View style={styles.scannerFrame}>
             <View style={[styles.corner, styles.topLeft]} />
@@ -273,9 +274,11 @@ export default function App() {
             />
           </View>
 
-          <Text style={styles.scannerHint}>
-            Position the QR code within the frame
-          </Text>
+          <View style={styles.hintPill}>
+            <Text style={styles.scannerHint}>
+              Align QR code within the frame
+            </Text>
+          </View>
         </View>
       </View>
     );
@@ -562,28 +565,36 @@ const styles = StyleSheet.create({
   },
   scannerOverlay: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between', // Distribute top/center/bottom
     alignItems: 'center',
-    // Removed background color so camera shows through, handled by absolute positioning logic
+    paddingVertical: 60,
   },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+  headerPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 30,
+    gap: 15,
+  },
+  backButtonPill: {
+    padding: 5,
   },
   scannerTitle: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 40,
-    marginTop: 60, // Push down
+  },
+  hintPill: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  backButton: {
+    // Deprecated
+    display: 'none',
   },
   scannerFrame: {
     width: 280,
@@ -637,9 +648,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   scannerHint: {
-    color: '#ccc',
+    color: '#fff',
     fontSize: 14,
-    marginTop: 30,
+    fontWeight: '500',
   },
   homeContainer: {
     flex: 1,
@@ -904,8 +915,8 @@ const styles = StyleSheet.create({
   },
   historyCardImage: {
     width: '100%',
-    height: 150,
-    backgroundColor: '#333',
+    height: 200,
+    backgroundColor: '#000',
   },
   historyCardContent: {
     padding: 15,

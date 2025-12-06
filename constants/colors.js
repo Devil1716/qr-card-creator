@@ -1,0 +1,22 @@
+export const Colors = {
+  primary: '#667eea',
+  primaryDark: '#5568d3',
+  secondary: '#764ba2',
+  accent: '#f093fb',
+  success: '#10b981',
+  background: '#0f0f1a',
+  backgroundSecondary: '#1a1a2e',
+  text: '#fff',
+  textSecondary: '#aaa',
+  textMuted: '#888',
+  border: '#333',
+  cardBackground: '#fff',
+  cardGradient: '#667eea',
+  badgeBackground: '#f0f4ff',
+  dataBackground: '#f8f9ff',
+  divider: '#eee',
+  overlay: 'rgba(0, 0, 0, 0.5)',
+  overlayLight: 'rgba(255, 255, 255, 0.1)',
+  overlayMedium: 'rgba(255, 255, 255, 0.2)',
+};
+
