@@ -33,6 +33,7 @@ export default function App() {
   const [userName, setUserName] = useState('');
   const [showQRCard, setShowQRCard] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [savedCards, setSavedCards] = useState([]);
 
   const viewShotRef = useRef(null);
@@ -358,6 +359,35 @@ export default function App() {
     );
   }
 
+  if (showHistory) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.cardHeader}>
+          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.backButtonCard}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.cardHeaderTitle}>Scanned History</Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {savedCards.map((card, index) => (
+            <View key={card.id || index} style={styles.historyCard}>
+              <View style={styles.historyCardHeader}>
+                <Ionicons name="qr-code" size={20} color="#667eea" />
+                <Text style={styles.historyCardName}>{card.name}</Text>
+              </View>
+              <Text style={styles.historyCardData} numberOfLines={1}>{card.data}</Text>
+              <Text style={styles.historyCardTime}>{card.timestamp}</Text>
+            </View>
+          ))}
+          {savedCards.length === 0 && (
+            <Text style={styles.emptyText}>No saved cards yet.</Text>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   // Home Screen
   return (
     <SafeAreaView style={styles.container}>
@@ -412,11 +442,11 @@ export default function App() {
         </Animated.View>
 
         {savedCards.length > 0 && (
-          <View style={styles.savedCardsSection}>
+          <TouchableOpacity style={styles.savedCardsSection} onPress={() => setShowHistory(true)}>
             <Text style={styles.savedCardsTitle}>
-              <Ionicons name="folder-open" size={16} color="#667eea" /> Saved Cards: {savedCards.length}
+              <Ionicons name="folder-open" size={16} color="#667eea" /> Saved Cards: {savedCards.length} (Tap to View)
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       </Animated.View>
     </SafeAreaView>
@@ -834,5 +864,39 @@ const styles = StyleSheet.create({
     color: '#667eea',
     fontSize: 16,
     fontWeight: '600',
+  },
+  historyCard: {
+    backgroundColor: '#1a1a2e',
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  historyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 10,
+  },
+  historyCardName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  historyCardData: {
+    color: '#aaa',
+    fontSize: 12,
+    marginBottom: 5,
+  },
+  historyCardTime: {
+    color: '#666',
+    fontSize: 10,
+  },
+  emptyText: {
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 50,
   },
 });
