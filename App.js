@@ -121,34 +121,40 @@ export default function App() {
 
   const saveQRCardToGallery = async () => {
     try {
-      if (!mediaPermission?.granted) {
-        const { granted } = await requestMediaPermission();
-        if (!granted) {
-          Alert.alert('Permission Required', 'Please grant media library permission to save images.');
-          return;
-        }
-      }
-
-      const uri = await viewShotRef.current.capture();
-      const asset = await MediaLibrary.createAssetAsync(uri);
-
-      // Save to app state
+      // 1. Save to Local History
       const newCard = {
         id: Date.now(),
         data: scannedData,
         name: userName || 'Anonymous',
         timestamp: new Date().toLocaleString(),
       };
-      // Save locally
       await saveCardToStorage(newCard);
 
-      Alert.alert(
-        '✅ Success!',
-        'Your QR Card has been saved to your gallery!',
-        [{ text: 'OK' }]
-      );
+      // 2. Capture and Save Image
+      const uri = await viewShotRef.current.capture();
+
+      try {
+        if (!mediaPermission?.granted) {
+          const { granted } = await requestMediaPermission();
+          if (!granted) {
+            throw new Error('Permission not granted');
+          }
+        }
+        await MediaLibrary.createAssetAsync(uri);
+        Alert.alert('✅ Success!', 'Saved to Gallery!');
+      } catch (galleryError) {
+        console.log("Gallery save failed, trying share fallback", galleryError);
+        Alert.alert(
+          'Saved to History',
+          'Gallery save is restricted in Expo Go. Tap "Share" to save the image manually.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Share Image', onPress: () => Sharing.shareAsync(uri) }
+          ]
+        );
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save the QR card. Please try again.');
+      Alert.alert('Error', 'Failed to process card.');
       console.error(error);
     }
   };
@@ -216,50 +222,49 @@ export default function App() {
       <View style={styles.scannerContainer}>
         <StatusBar barStyle="light-content" />
         <CameraView
-          style={styles.camera}
+          style={StyleSheet.absoluteFill}
           onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
           barcodeScannerSettings={{
             barcodeTypes: ['qr'],
           }}
-        >
-          <View style={styles.scannerOverlay}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setShowScanner(false)}
-            >
-              <Ionicons name="arrow-back" size={28} color="#fff" />
-            </TouchableOpacity>
+        />
+        <View style={styles.scannerOverlay}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setShowScanner(false)}
+          >
+            <Ionicons name="arrow-back" size={28} color="#fff" />
+          </TouchableOpacity>
 
-            <Text style={styles.scannerTitle}>Scan QR Code</Text>
+          <Text style={styles.scannerTitle}>Scan QR Code</Text>
 
-            <View style={styles.scannerFrame}>
-              <View style={[styles.corner, styles.topLeft]} />
-              <View style={[styles.corner, styles.topRight]} />
-              <View style={[styles.corner, styles.bottomLeft]} />
-              <View style={[styles.corner, styles.bottomRight]} />
+          <View style={styles.scannerFrame}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
 
-              <Animated.View
-                style={[
-                  styles.scanLine,
-                  {
-                    transform: [
-                      {
-                        translateY: scanLineAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 250],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-            </View>
-
-            <Text style={styles.scannerHint}>
-              Position the QR code within the frame
-            </Text>
+            <Animated.View
+              style={[
+                styles.scanLine,
+                {
+                  transform: [
+                    {
+                      translateY: scanLineAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 250],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
           </View>
-        </CameraView>
+
+          <Text style={styles.scannerHint}>
+            Position the QR code within the frame
+          </Text>
+        </View>
       </View>
     );
   }
