@@ -49,7 +49,7 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -x bundleReleaseJsAndAssets -x createBundleReleaseJsAndAssets
+        run: ./gradlew assembleRelease --no-daemon -x createBundleReleaseJsAndAssets
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
