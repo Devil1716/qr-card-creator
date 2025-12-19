@@ -96,7 +96,6 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
                   resizeMode="cover"
                   onError={(e) => console.log('Image load error for card:', card.id, e.nativeEvent.error)}
                 />
-                <View style={styles.cardImageOverlay} />
               </View>
             ) : (
               <View style={styles.cardImagePlaceholder}>
@@ -107,7 +106,7 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <View style={styles.cardIconContainer}>
-                    <Ionicons name="qr-code" size={18} color={Colors.primary} />
+                    <Ionicons name="person" size={16} color={Colors.primary} />
                   </View>
                   <Text style={styles.cardName} numberOfLines={1}>{card.name}</Text>
                 </View>
@@ -122,20 +121,13 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
                   accessibilityRole="button"
                 >
                   <View style={styles.deleteButtonInner}>
-                    <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                    <Ionicons name="trash-outline" size={16} color={Colors.error} />
                   </View>
                 </TouchableOpacity>
               </View>
-              <View style={styles.cardDataContainer}>
-                <Text style={styles.cardData} numberOfLines={2}>{card.data}</Text>
-              </View>
               <View style={styles.cardFooter}>
-                <Ionicons name="time-outline" size={14} color={Colors.textMuted} />
+                <Ionicons name="time-outline" size={12} color={Colors.textMuted} />
                 <Text style={styles.cardTime}>{card.timestamp}</Text>
-                <View style={styles.viewDetailsHint}>
-                  <Ionicons name="eye-outline" size={12} color={Colors.textMuted} />
-                  <Text style={styles.viewDetailsText}>Tap to view details</Text>
-                </View>
               </View>
             </View>
           </TouchableOpacity>
