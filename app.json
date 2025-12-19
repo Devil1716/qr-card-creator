@@ -2,7 +2,7 @@
   "expo": {
     "name": "QR Card Creator",
     "slug": "qr-card-creator",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -46,14 +46,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow QR Card Creator to access your camera to scan QR codes."
+          "cameraPermission": "We need camera access to scan QR codes."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow QR Card Creator to save your QR cards to your photo library.",
-          "savePhotosPermission": "Allow QR Card Creator to save your QR cards to your photo library."
+          "photosPermission": "We need access to your gallery to save your QR cards so you can find them later.",
+          "savePhotosPermission": "We need access to your gallery to save your QR cards so you can find them later."
         }
       ]
     ]

@@ -29,6 +29,7 @@ import HomeScreen from './components/HomeScreen';
 
 // Utils & Constants
 import { loadSavedCards, addCardToStorage } from './utils/storage';
+import { checkForUpdates } from './utils/updater';
 import { ErrorMessages, SuccessMessages, getErrorMessage } from './utils/errors';
 import { Colors } from './constants/colors';
 import { CARD_DEFAULTS } from './constants/storage';
@@ -51,9 +52,10 @@ export default function App() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load saved cards on startup
+  // Load saved cards and check for updates
   useEffect(() => {
     initializeApp();
+    checkForUpdates();
   }, []);
 
   // Pulse animation for buttons
