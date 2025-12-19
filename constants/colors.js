@@ -1,30 +1,30 @@
 export const Colors = {
-  primary: '#6366f1',
-  primaryDark: '#4f46e5',
-  primaryLight: '#818cf8',
-  secondary: '#8b5cf6',
-  accent: '#ec4899',
+  primary: '#0066CC', // R8 Blue
+  primaryDark: '#004C99',
+  primaryLight: '#4D94FF',
+  secondary: '#66CC00', // R8 Green
+  accent: '#FF8C00', // Swoosh Orange
   success: '#10b981',
   successLight: '#34d399',
   warning: '#f59e0b',
   error: '#ef4444',
-  background: '#0a0a0f',
-  backgroundSecondary: '#151520',
-  backgroundTertiary: '#1e1e2e',
+  background: '#0a0b10', // Deep dark blue-black
+  backgroundSecondary: '#11131a',
+  backgroundTertiary: '#1a1d26',
   text: '#ffffff',
   textSecondary: '#cbd5e1',
-  textMuted: '#94a3b8',
-  border: '#2d2d3a',
-  borderLight: '#3d3d4a',
+  textMuted: '#64748b',
+  border: '#1e293b',
+  borderLight: '#334155',
   cardBackground: '#ffffff',
-  cardGradient: '#667eea',
-  badgeBackground: '#ede9fe',
+  cardGradient: '#0066CC', // Blue gradient start
+  badgeBackground: '#f0f9ff',
   dataBackground: '#f8fafc',
   divider: '#e2e8f0',
-  overlay: 'rgba(0, 0, 0, 0.7)',
+  overlay: 'rgba(5, 5, 10, 0.8)',
   overlayLight: 'rgba(255, 255, 255, 0.1)',
   overlayMedium: 'rgba(255, 255, 255, 0.15)',
-  overlayDark: 'rgba(0, 0, 0, 0.4)',
-  shadow: 'rgba(99, 102, 241, 0.3)',
+  overlayDark: 'rgba(0, 0, 0, 0.6)',
+  shadow: 'rgba(0, 102, 204, 0.4)',
 };
 

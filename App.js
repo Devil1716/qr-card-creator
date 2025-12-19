@@ -140,129 +140,87 @@ export default function App() {
 
     setIsLoading(true);
     try {
-      // Wait for view to be fully rendered and laid out
+      // 1. Request Media Library Permissions explicitly if needed
+      let mediaStatus = mediaPermission?.status;
+      if (mediaStatus !== 'granted') {
+        const { status } = await requestMediaPermission();
+        mediaStatus = status;
+      }
+
+      if (mediaStatus !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'We need access to your gallery to save the QR card. Please grant permission in settings.',
+          [{ text: 'OK' }]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Wait for view to be ready
       if (!isViewReady) {
         await new Promise(resolve => setTimeout(resolve, 800));
       } else {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 1. Capture the image with retry logic
+      // 2. Capture Image
       let tempUri;
-      const maxRetries = 3;
-      let lastError;
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          // Ensure view is ready
-          if (attempt > 0) {
-            await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
-          }
-
-          tempUri = await viewShotRef.current.capture();
-          if (tempUri) break;
-        } catch (captureError) {
-          lastError = captureError;
-          console.warn(`Capture attempt ${attempt + 1} failed:`, captureError);
-          if (attempt === maxRetries - 1) {
-            throw new Error(`Failed to capture after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
-          }
-        }
-      }
-
-      if (!tempUri) {
-        throw new Error('Failed to capture view snapshot');
-      }
-
-      // 2. Save image permanently to App Storage in dedicated folder
-      const storageFolder = `${FileSystem.documentDirectory}QRCards/`;
-
-      // Ensure folder exists
       try {
+        tempUri = await viewShotRef.current.capture();
+      } catch (err) {
+        // Retry once
+        await new Promise(resolve => setTimeout(resolve, 500));
+        tempUri = await viewShotRef.current.capture();
+      }
+
+      if (!tempUri) throw new Error('Failed to capture image');
+
+      // 3. Save to "R8 Cards" Album (Public Gallery)
+      try {
+        const asset = await MediaLibrary.createAssetAsync(tempUri);
+        const albumName = 'R8 Cards';
+        const album = await MediaLibrary.getAlbumAsync(albumName);
+
+        if (album) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+        } else {
+          await MediaLibrary.createAlbumAsync(albumName, asset, false);
+        }
+
+        Alert.alert('Saved! 📸', `Card saved to your Gallery in "${albumName}" folder.`);
+      } catch (galleryError) {
+        console.error('Gallery save error:', galleryError);
+        Alert.alert('Saved', 'Image saved to detailed history, but gallery save failed.');
+      }
+
+      // 4. Background: Save to Internal Storage for History (Best Effort)
+      try {
+        const storageFolder = `${FileSystem.documentDirectory}QRCards/`;
         const dirInfo = await FileSystem.getInfoAsync(storageFolder);
         if (!dirInfo.exists) {
           await FileSystem.makeDirectoryAsync(storageFolder, { intermediates: true });
         }
-      } catch (dirError) {
-        logger.error('Directory creation error:', dirError);
-        // Continue anyway, File API might handle it or fail
-      }
 
-      const fileName = `card_${Date.now()}.png`;
-      const internalUri = `${storageFolder}${fileName}`;
-
-      // Use FileSystem copyAsync
-      try {
+        const fileName = `card_${Date.now()}.png`;
+        const internalUri = `${storageFolder}${fileName}`;
         await FileSystem.copyAsync({ from: tempUri, to: internalUri });
-      } catch (copyError) {
-        logger.error('File copy error:', copyError);
-        // Fallback: Retry with delay
-        try {
-          await new Promise(resolve => setTimeout(resolve, 300));
-          await FileSystem.copyAsync({ from: tempUri, to: internalUri });
-        } catch (fallbackError) {
-          logger.error('Fallback copy error:', fallbackError);
-          throw new Error('Failed to save file. Please try again.');
-        }
-      }
 
-      // 3. Save to Local History
-      const newCard = {
-        id: Date.now(),
-        data: scannedData,
-        name: userName || CARD_DEFAULTS.ANONYMOUS_NAME,
-        timestamp: new Date().toLocaleString(),
-        imageUri: internalUri,
-      };
+        const newCard = {
+          id: Date.now(),
+          data: scannedData,
+          name: userName || CARD_DEFAULTS.ANONYMOUS_NAME,
+          timestamp: new Date().toLocaleString(),
+          imageUri: internalUri,
+        };
 
-      const success = await addCardToStorage(newCard, savedCards);
-      if (success) {
+        await addCardToStorage(newCard, savedCards);
         setSavedCards(prev => [...prev, newCard]);
+      } catch (internalError) {
+        logger.error('Internal history save failed:', internalError);
+        // Do not alert user, they have the gallery copy
       }
 
-      // 4. Try saving to Gallery (User Convenience)
-      try {
-        if (!mediaPermission?.granted) {
-          const { granted } = await requestMediaPermission();
-          if (!granted) {
-            // Check if we're in Expo Go
-            const isExpoGo = Constants?.executionEnvironment === 'storeClient';
-            const permissionMessage = isExpoGo
-              ? '\n\nNote: Expo Go has limited media library access on Android. Your card is saved to app history. To test full gallery functionality, create a development build.'
-              : '\n\nNote: Gallery save requires permission. Your card is saved to app history.';
-
-            // Don't block if not granted, just skip gallery
-            Alert.alert(
-              'Saved to App',
-              SuccessMessages.SAVED_TO_APP + permissionMessage,
-              [
-                { text: 'OK' },
-                { text: 'Share Image', onPress: () => shareImage(tempUri) },
-              ]
-            );
-            return;
-          }
-        }
-
-        await MediaLibrary.createAssetAsync(tempUri);
-        Alert.alert('✅ Success', SuccessMessages.SAVED_TO_GALLERY);
-      } catch (galleryError) {
-        // Check if we're in Expo Go
-        const isExpoGo = Constants?.executionEnvironment === 'storeClient';
-        const expoGoMessage = isExpoGo
-          ? '\n\nNote: Expo Go has limited media library access on Android. To test full functionality, create a development build: https://docs.expo.dev/develop/development-builds/create-a-build'
-          : '\n\nNote: Gallery save may require additional permissions or a development build.';
-
-        // If gallery fails, just notify that it's in history
-        Alert.alert(
-          'Saved to App',
-          SuccessMessages.SAVED_TO_APP + expoGoMessage,
-          [
-            { text: 'OK' },
-            { text: 'Share Image', onPress: () => shareImage(tempUri) },
-          ]
-        );
-      }
     } catch (error) {
       const errorMessage = getErrorMessage(error, ErrorMessages.SAVE_FAILED);
       Alert.alert('Error', errorMessage);
