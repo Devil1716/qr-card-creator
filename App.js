@@ -88,19 +88,15 @@ export default function App() {
         // Ignore delete errors
       }
 
-      const callback = downloadProgress => {
-        const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-        setDownloadProgress(progress);
-      };
+      // Download directly (Progress updates removed due to API deprecation)
+      setDownloadProgress(0.5); // Fake indeterminate progress
 
-      const downloadResumable = FileSystem.createDownloadResumable(
+      const { uri, status } = await FileSystem.downloadAsync(
         updateInfo.downloadUrl,
-        downloadDest,
-        {},
-        callback
+        downloadDest
       );
 
-      const { uri, status } = await downloadResumable.downloadAsync();
+      setDownloadProgress(1); // Complete
 
       if (status !== 200) {
         throw new Error(`Download failed with status ${status}`);
