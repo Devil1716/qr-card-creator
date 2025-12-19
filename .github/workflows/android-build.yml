@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -32,21 +32,24 @@ jobs:
       - name: Generate Android Project
         run: npx expo prebuild --platform android --clean
 
-      - name: Bundle JavaScript
+      - name: Create Assets Directory
+        run: mkdir -p android/app/src/main/assets
+
+      - name: Bundle JavaScript with Metro
         run: |
-          npx react-native bundle \
+          npx expo export:embed \
             --platform android \
-            --dev false \
             --entry-file index.js \
             --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res
+            --assets-dest android/app/src/main/res \
+            --dev false
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -x bundleReleaseJsAndAssets
+        run: ./gradlew assembleRelease --no-daemon -x bundleReleaseJsAndAssets -x createBundleReleaseJsAndAssets
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
