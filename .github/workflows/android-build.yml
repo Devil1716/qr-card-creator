@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-android:
@@ -19,29 +20,22 @@ jobs:
         with:
           node-version: 18
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
       - name: Install Dependencies
         run: npm ci
 
-      - name: Install Expo CLI
-        run: npm install -g expo-cli @expo/ngrok
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Prebuild (Generate Android Project)
-        run: npx expo prebuild --platform android
+      - name: Build APK with EAS
+        run: eas build --platform android --profile preview --non-interactive --local
 
-      - name: Make Gradlew Executable
-        run: chmod +x android/gradlew
-
-      - name: Build Android APK
-        run: cd android && ./gradlew assembleRelease --no-daemon
-
-      - name: Upload APK Artifact
+      - name: Find and Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: |
+            *.apk
+            *.aab
