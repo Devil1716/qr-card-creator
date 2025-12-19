@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "description": "Scan QR codes and create beautiful digital QR cards. Save, share, and manage your QR codes with ease.",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,9 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.qrcardcreator.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes.",
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save QR cards."
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save QR cards.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs permission to save QR cards to your photo library."
       }
     },
     "android": {
@@ -27,10 +30,11 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.qrcardcreator.app",
+      "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ]
     },
     "web": {

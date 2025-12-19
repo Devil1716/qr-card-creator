@@ -16,7 +16,10 @@ const HomeScreen = ({
       <View style={styles.heroSection}>
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
-            <Ionicons name="qr-code" size={60} color={Colors.text} />
+            <View style={styles.logoInnerCircle}>
+              <Ionicons name="qr-code" size={64} color={Colors.text} />
+            </View>
+            <View style={styles.logoGlow} />
           </View>
         </View>
         <Text style={styles.title}>QR Card Creator</Text>
@@ -27,24 +30,24 @@ const HomeScreen = ({
 
       <View style={styles.featuresContainer}>
         <View style={styles.featureItem}>
-          <View style={styles.featureIcon}>
-            <Ionicons name="scan" size={24} color={Colors.primary} />
+          <View style={[styles.featureIcon, { backgroundColor: `${Colors.primary}20` }]}>
+            <Ionicons name="scan" size={28} color={Colors.primary} />
           </View>
-          <Text style={styles.featureText}>Quick QR Scan</Text>
+          <Text style={styles.featureText}>Quick Scan</Text>
         </View>
 
         <View style={styles.featureItem}>
-          <View style={styles.featureIcon}>
-            <Ionicons name="person" size={24} color={Colors.secondary} />
+          <View style={[styles.featureIcon, { backgroundColor: `${Colors.secondary}20` }]}>
+            <Ionicons name="person" size={28} color={Colors.secondary} />
           </View>
-          <Text style={styles.featureText}>Add Your Name</Text>
+          <Text style={styles.featureText}>Personalize</Text>
         </View>
 
         <View style={styles.featureItem}>
-          <View style={styles.featureIcon}>
-            <Ionicons name="save" size={24} color={Colors.accent} />
+          <View style={[styles.featureIcon, { backgroundColor: `${Colors.accent}20` }]}>
+            <Ionicons name="share-social" size={28} color={Colors.accent} />
           </View>
-          <Text style={styles.featureText}>Save & Share</Text>
+          <Text style={styles.featureText}>Share</Text>
         </View>
       </View>
 
@@ -52,30 +55,43 @@ const HomeScreen = ({
         <TouchableOpacity
           style={styles.scanButton}
           onPress={onStartScanning}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
           accessibilityLabel="Start scanning QR code"
           accessibilityRole="button"
         >
           <View style={styles.scanButtonInner}>
-            <Ionicons name="scan-circle" size={32} color={Colors.text} />
+            <View style={styles.scanButtonIconContainer}>
+              <Ionicons name="scan-circle" size={36} color={Colors.text} />
+            </View>
             <Text style={styles.scanButtonText}>Start Scanning</Text>
+            <Ionicons name="arrow-forward" size={20} color={Colors.text} style={styles.arrowIcon} />
           </View>
+          <View style={styles.scanButtonGlow} />
         </TouchableOpacity>
       </Animated.View>
 
-      {savedCardsCount > 0 && (
-        <TouchableOpacity 
-          style={styles.savedCardsSection} 
-          onPress={onViewHistory}
-          accessibilityLabel={`View ${savedCardsCount} saved cards`}
-          accessibilityRole="button"
-        >
-          <Text style={styles.savedCardsTitle}>
-            <Ionicons name="folder-open" size={16} color={Colors.primary} /> 
-            {' '}Saved Cards: {savedCardsCount} (Tap to View)
-          </Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity 
+        style={styles.savedCardsSection} 
+        onPress={onViewHistory}
+        activeOpacity={0.7}
+        accessibilityLabel={savedCardsCount > 0 ? `View ${savedCardsCount} saved cards` : 'View saved cards history'}
+        accessibilityRole="button"
+      >
+        <View style={styles.savedCardsContent}>
+          <View style={styles.savedCardsIconContainer}>
+            <Ionicons name="folder-open" size={20} color={Colors.primary} />
+          </View>
+          <View style={styles.savedCardsTextContainer}>
+            <Text style={styles.savedCardsTitle}>View Saved Cards</Text>
+            <Text style={styles.savedCardsCount}>
+              {savedCardsCount > 0 
+                ? `${savedCardsCount} ${savedCardsCount === 1 ? 'card' : 'cards'} saved`
+                : 'No cards saved yet'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+        </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -83,90 +99,171 @@ const HomeScreen = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     justifyContent: 'center',
+    paddingTop: 40,
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 50,
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
+    position: 'relative',
   },
   logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+    elevation: 15,
+    position: 'relative',
+  },
+  logoInnerCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.primaryDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: Colors.primary,
+    opacity: 0.2,
+    zIndex: -1,
   },
   title: {
     color: Colors.text,
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 10,
+    fontSize: 36,
+    fontWeight: '800',
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 17,
     textAlign: 'center',
     paddingHorizontal: 20,
+    lineHeight: 24,
   },
   featuresContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginBottom: 40,
+    marginBottom: 50,
+    paddingHorizontal: 10,
   },
   featureItem: {
     alignItems: 'center',
+    flex: 1,
   },
   featureIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: Colors.overlayLight,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   featureText: {
     color: Colors.textSecondary,
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
+    fontWeight: '600',
   },
   scanButton: {
     alignSelf: 'center',
     borderRadius: 30,
-    overflow: 'hidden',
+    overflow: 'visible',
+    position: 'relative',
+    width: '100%',
+    maxWidth: 320,
   },
   scanButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: 40,
-    paddingVertical: 18,
+    paddingHorizontal: 32,
+    paddingVertical: 20,
     gap: 12,
     borderRadius: 30,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  scanButtonIconContainer: {
+    marginRight: 4,
   },
   scanButtonText: {
     color: Colors.text,
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  arrowIcon: {
+    marginLeft: 4,
+  },
+  scanButtonGlow: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: 40,
+    backgroundColor: Colors.primary,
+    opacity: 0.1,
+    zIndex: -1,
   },
   savedCardsSection: {
-    marginTop: 30,
+    marginTop: 32,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  savedCardsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  savedCardsIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: `${Colors.primary}20`,
+    justifyContent: 'center',
     alignItems: 'center',
   },
+  savedCardsTextContainer: {
+    flex: 1,
+  },
   savedCardsTitle: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '500',
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  savedCardsCount: {
+    color: Colors.textSecondary,
+    fontSize: 13,
   },
 });
 

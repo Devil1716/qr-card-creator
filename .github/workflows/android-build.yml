@@ -39,8 +39,11 @@ jobs:
       - name: Prebuild (Generate Android Project)
         run: npx expo prebuild --platform android --no-interactive
 
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
       - name: Build Android APK
-        cd android && ./gradlew assembleRelease --no-daemon
+        run: cd android && ./gradlew assembleRelease --no-daemon
 
       - name: Sign APK (Debug for now)
         # In a real app, you would sign with a release keystore here.

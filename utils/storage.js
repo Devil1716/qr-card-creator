@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../constants/storage';
+import logger from './logger';
 
 /**
  * Load saved QR cards from storage
@@ -13,7 +14,7 @@ export const loadSavedCards = async () => {
     }
     return [];
   } catch (error) {
-    console.error('Failed to load cards:', error);
+    logger.error('Failed to load cards:', error);
     return [];
   }
 };
@@ -28,7 +29,7 @@ export const saveCardsToStorage = async (cards) => {
     await AsyncStorage.setItem(STORAGE_KEYS.QR_CARDS, JSON.stringify(cards));
     return true;
   } catch (error) {
-    console.error('Failed to save cards:', error);
+    logger.error('Failed to save cards:', error);
     return false;
   }
 };
@@ -44,7 +45,7 @@ export const addCardToStorage = async (newCard, existingCards = []) => {
     const updatedCards = [...existingCards, newCard];
     return await saveCardsToStorage(updatedCards);
   } catch (error) {
-    console.error('Failed to add card:', error);
+    logger.error('Failed to add card:', error);
     return false;
   }
 };
@@ -60,7 +61,7 @@ export const deleteCardFromStorage = async (cardId, existingCards = []) => {
     const updatedCards = existingCards.filter(card => card.id !== cardId);
     return await saveCardsToStorage(updatedCards);
   } catch (error) {
-    console.error('Failed to delete card:', error);
+    logger.error('Failed to delete card:', error);
     return false;
   }
 };

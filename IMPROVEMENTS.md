@@ -137,3 +137,4 @@ qr-scanner-app/
 7. Add search functionality in history
 8. Add categories/tags for cards
 
+

@@ -38,43 +38,55 @@ const QRScanner = ({ onBarcodeScanned, onBack, scanned }) => {
         }}
       />
       <View style={styles.overlay}>
+        <View style={styles.topOverlay} />
+        <View style={styles.bottomOverlay} />
+        
         <TouchableOpacity
           style={styles.backButton}
           onPress={onBack}
+          activeOpacity={0.8}
           accessibilityLabel="Go back"
           accessibilityRole="button"
         >
-          <Ionicons name="arrow-back" size={28} color={Colors.text} />
+          <View style={styles.backButtonInner}>
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </View>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Scan QR Code</Text>
+        <View style={styles.scanArea}>
+          <Text style={styles.title}>Scan QR Code</Text>
+          
+          <View style={styles.frame}>
+            <View style={styles.frameOverlay} />
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
 
-        <View style={styles.frame}>
-          <View style={[styles.corner, styles.topLeft]} />
-          <View style={[styles.corner, styles.topRight]} />
-          <View style={[styles.corner, styles.bottomLeft]} />
-          <View style={[styles.corner, styles.bottomRight]} />
+            <Animated.View
+              style={[
+                styles.scanLine,
+                {
+                  transform: [
+                    {
+                      translateY: scanLineAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 280],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          </View>
 
-          <Animated.View
-            style={[
-              styles.scanLine,
-              {
-                transform: [
-                  {
-                    translateY: scanLineAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 250],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
+          <View style={styles.hintContainer}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.textSecondary} />
+            <Text style={styles.hint}>
+              Position the QR code within the frame
+            </Text>
+          </View>
         </View>
-
-        <Text style={styles.hint}>
-          Position the QR code within the frame
-        </Text>
       </View>
     </View>
   );
@@ -89,80 +101,134 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  topOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '35%',
+    backgroundColor: Colors.overlay,
+  },
+  bottomOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '35%',
+    backgroundColor: Colors.overlay,
+  },
   backButton: {
     position: 'absolute',
     top: 50,
     left: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    zIndex: 10,
+  },
+  backButtonInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.overlayMedium,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  scanArea: {
+    alignItems: 'center',
+    zIndex: 5,
   },
   title: {
     color: Colors.text,
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 40,
-    marginTop: 60,
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 50,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   frame: {
-    width: 280,
-    height: 280,
-    borderRadius: 20,
+    width: 300,
+    height: 300,
+    borderRadius: 24,
     position: 'relative',
     overflow: 'hidden',
   },
+  frameOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 24,
+    opacity: 0.3,
+  },
   corner: {
     position: 'absolute',
-    width: 40,
-    height: 40,
+    width: 50,
+    height: 50,
     borderColor: Colors.primary,
+    zIndex: 2,
   },
   topLeft: {
     top: 0,
     left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 20,
+    borderTopWidth: 5,
+    borderLeftWidth: 5,
+    borderTopLeftRadius: 24,
   },
   topRight: {
     top: 0,
     right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 20,
+    borderTopWidth: 5,
+    borderRightWidth: 5,
+    borderTopRightRadius: 24,
   },
   bottomLeft: {
     bottom: 0,
     left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 20,
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    borderBottomLeftRadius: 24,
   },
   bottomRight: {
     bottom: 0,
     right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 20,
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    borderBottomRightRadius: 24,
   },
   scanLine: {
-    width: '100%',
-    height: 3,
+    width: '90%',
+    height: 4,
     backgroundColor: Colors.primary,
+    alignSelf: 'center',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 12,
+    elevation: 8,
+    borderRadius: 2,
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 40,
+    gap: 8,
+    backgroundColor: Colors.overlayMedium,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
   hint: {
     color: Colors.textSecondary,
-    fontSize: 14,
-    marginTop: 30,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
 

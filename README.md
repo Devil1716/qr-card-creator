@@ -56,19 +56,61 @@ A beautiful Android app that scans QR codes and creates personalized digital cop
    - Press `a` in the terminal to open in Android emulator
    - Or scan the QR code with Expo Go app on your Android device
 
-### Building for Android
+### Building for Production 🏗️
 
-To create an APK for distribution:
+#### Prerequisites for Production Builds
+
+1. **Install EAS CLI globally:**
+   ```bash
+   npm install -g eas-cli
+   ```
+
+2. **Login to your Expo account:**
+   ```bash
+   eas login
+   ```
+
+3. **Configure EAS (if not already done):**
+   ```bash
+   eas build:configure
+   ```
+
+#### Development Build
+
+For testing with full native functionality (required for media library on Android):
 
 ```bash
-# Install EAS CLI
-npm install -g eas-cli
+eas build --profile development --platform android
+```
 
-# Login to Expo
-eas login
+#### Preview Build (Internal Testing)
 
-# Build for Android
-eas build --platform android
+Create an APK for internal testing:
+
+```bash
+eas build --profile preview --platform android
+```
+
+#### Production Build
+
+Create a production-ready build:
+
+```bash
+# Android APK
+eas build --profile production --platform android
+
+# iOS (requires Apple Developer account)
+eas build --profile production --platform ios
+```
+
+#### Submit to App Stores
+
+```bash
+# Submit to Google Play Store
+eas submit --platform android
+
+# Submit to Apple App Store
+eas submit --platform ios
 ```
 
 ### Automated GitHub Build 🤖
