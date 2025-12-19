@@ -93,12 +93,14 @@ const QRCard = ({
                 />
               </View>
 
+              {/* 
               <View style={styles.dataContainer}>
                 <Text style={styles.dataLabel}>DATA PAYLOAD</Text>
                 <Text style={styles.dataValue} numberOfLines={2}>
                   {qrData}
                 </Text>
-              </View>
+              </View> 
+              */}
 
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Powered by R8 Scanner</Text>

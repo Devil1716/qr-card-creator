@@ -59,8 +59,8 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={onBack} 
+        <TouchableOpacity
+          onPress={onBack}
           style={styles.backButton}
           activeOpacity={0.8}
           accessibilityLabel="Go back"
@@ -77,7 +77,7 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
           )}
         </View>
       </View>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -94,6 +94,7 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
                   source={{ uri: card.imageUri }}
                   style={styles.cardImage}
                   resizeMode="cover"
+                  onError={(e) => console.log('Image load error for card:', card.id, e.nativeEvent.error)}
                 />
                 <View style={styles.cardImageOverlay} />
               </View>
@@ -179,7 +180,7 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
                       resizeMode="contain"
                     />
                   )}
-                  
+
                   <View style={styles.modalSection}>
                     <Text style={styles.modalLabel}>Name</Text>
                     <Text style={styles.modalValue}>{selectedCard.name}</Text>

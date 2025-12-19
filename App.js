@@ -168,7 +168,8 @@ export default function App() {
   const initializeApp = async () => {
     try {
       // Initialize storage folder
-      await initializeStorageFolder();
+      const folder = await initializeStorageFolder();
+      console.log('Storage folder initialized:', folder);
 
       const cards = await loadSavedCards();
       setSavedCards(cards);
