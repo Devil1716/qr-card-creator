@@ -164,38 +164,41 @@ const HistoryScreen = ({ cards, onBack, onCardDeleted }) => {
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-                  {selectedCard.imageUri && (
-                    <Image
-                      source={{ uri: selectedCard.imageUri }}
-                      style={styles.modalImage}
-                      resizeMode="contain"
-                    />
-                  )}
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalLabel}>Name</Text>
-                    <Text style={styles.modalValue}>{selectedCard.name}</Text>
-                  </View>
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalLabel}>QR Code Data</Text>
-                    <View style={styles.modalDataContainer}>
-                      <Text style={styles.modalDataText} selectable>{selectedCard.data}</Text>
+                <ScrollView
+                  style={styles.modalScrollView}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.modalScrollContent}
+                >
+                  {selectedCard.imageUri ? (
+                    <View style={styles.modalImageContainer}>
+                      <Image
+                        source={{ uri: selectedCard.imageUri }}
+                        style={styles.modalImage}
+                        resizeMode="contain"
+                      />
                     </View>
-                  </View>
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalLabel}>Created</Text>
-                    <Text style={styles.modalValue}>{selectedCard.timestamp}</Text>
-                  </View>
-
-                  {selectedCard.imageUri && (
-                    <View style={styles.modalSection}>
-                      <Text style={styles.modalLabel}>File Location</Text>
-                      <Text style={styles.modalFileLocation} numberOfLines={2}>{selectedCard.imageUri}</Text>
+                  ) : (
+                    <View style={styles.modalImagePlaceholder}>
+                      <Ionicons name="image-outline" size={60} color={Colors.textMuted} />
+                      <Text style={styles.placeholderText}>No image saved</Text>
                     </View>
                   )}
+
+                  <View style={styles.modalInfoCard}>
+                    <View style={styles.modalInfoRow}>
+                      <Ionicons name="person" size={18} color={Colors.primary} />
+                      <Text style={styles.modalInfoLabel}>Name</Text>
+                    </View>
+                    <Text style={styles.modalInfoValue}>{selectedCard.name}</Text>
+                  </View>
+
+                  <View style={styles.modalInfoCard}>
+                    <View style={styles.modalInfoRow}>
+                      <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                      <Text style={styles.modalInfoLabel}>Created</Text>
+                    </View>
+                    <Text style={styles.modalInfoValue}>{selectedCard.timestamp}</Text>
+                  </View>
                 </ScrollView>
 
                 <View style={styles.modalActions}>
@@ -416,15 +419,17 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   modalContent: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    maxHeight: '90%',
-    paddingBottom: 20,
+    borderRadius: 24,
+    width: '100%',
+    maxHeight: '85%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -436,8 +441,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: Colors.text,
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
   },
   closeButton: {
     width: 40,
@@ -448,62 +453,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalScrollView: {
-    flex: 1,
+    flexGrow: 0,
+  },
+  modalScrollContent: {
     padding: 20,
+  },
+  modalImageContainer: {
+    width: '100%',
+    aspectRatio: 0.7,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundSecondary,
+    marginBottom: 20,
   },
   modalImage: {
     width: '100%',
-    height: 300,
-    borderRadius: 20,
-    marginBottom: 20,
+    height: '100%',
+  },
+  modalImagePlaceholder: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
     backgroundColor: Colors.backgroundSecondary,
-  },
-  modalSection: {
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 20,
   },
-  modalLabel: {
+  placeholderText: {
+    color: Colors.textMuted,
+    fontSize: 14,
+    marginTop: 10,
+  },
+  modalInfoCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modalInfoLabel: {
     color: Colors.textMuted,
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
-  modalValue: {
+  modalInfoValue: {
     color: Colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-  },
-  modalDataContainer: {
-    backgroundColor: Colors.backgroundSecondary,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  modalDataText: {
-    color: Colors.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  modalFileLocation: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontFamily: 'monospace',
   },
   modalActions: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
+    padding: 20,
     paddingTop: 10,
     gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   modalButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 15,
+    paddingVertical: 14,
+    borderRadius: 12,
     gap: 8,
   },
   shareButton: {
@@ -514,7 +533,7 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: Colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
