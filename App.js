@@ -16,6 +16,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
+import * as IntentLauncher from 'expo-intent-launcher';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -26,6 +27,7 @@ import QRScanner from './components/QRScanner';
 import QRCard from './components/QRCard';
 import HistoryScreen from './components/HistoryScreen';
 import HomeScreen from './components/HomeScreen';
+import UpdateModal from './components/UpdateModal';
 
 // Utils & Constants
 import { loadSavedCards, addCardToStorage } from './utils/storage';
@@ -48,6 +50,12 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isViewReady, setIsViewReady] = useState(false);
 
+  // Update State
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
   const viewShotRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -55,8 +63,53 @@ export default function App() {
   // Load saved cards and check for updates
   useEffect(() => {
     initializeApp();
-    checkForUpdates();
+    handleCheckForUpdates();
   }, []);
+
+  const handleCheckForUpdates = async () => {
+    const update = await checkForUpdates();
+    if (update) {
+      setUpdateInfo(update);
+      setShowUpdateModal(true);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!updateInfo?.downloadUrl) return;
+
+    setIsDownloading(true);
+    try {
+      const callback = downloadProgress => {
+        const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+        setDownloadProgress(progress);
+      };
+
+      const downloadResumable = FileSystem.createDownloadResumable(
+        updateInfo.downloadUrl,
+        FileSystem.documentDirectory + 'app-update.apk',
+        {},
+        callback
+      );
+
+      const { uri } = await downloadResumable.downloadAsync();
+
+      // Install APK
+      if (Platform.OS === 'android') {
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: 'application/vnd.android.package-archive',
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Update Failed', 'Could not download the update. Please try again.');
+    } finally {
+      setIsDownloading(false);
+      setShowUpdateModal(false);
+    }
+  };
 
   // Pulse animation for buttons
   useEffect(() => {
@@ -457,6 +510,15 @@ export default function App() {
         savedCardsCount={savedCards.length}
         fadeAnim={fadeAnim}
         pulseAnim={pulseAnim}
+      />
+
+      <UpdateModal
+        visible={showUpdateModal}
+        updateInfo={updateInfo}
+        onUpdate={handleUpdate}
+        onCancel={() => setShowUpdateModal(false)}
+        isDownloading={isDownloading}
+        progress={downloadProgress}
       />
     </SafeAreaView>
   );

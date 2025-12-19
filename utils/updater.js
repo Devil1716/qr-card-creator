@@ -9,8 +9,11 @@ const CURRENT_VERSION = Constants.expoConfig?.version || '1.0.0';
 /**
  * Checks for the latest release on GitHub and prompts the user to update if available.
  */
+/**
+ * Checks for the latest release on GitHub.
+ */
 export const checkForUpdates = async () => {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === 'web') return null;
 
     try {
         const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
@@ -18,7 +21,7 @@ export const checkForUpdates = async () => {
         if (!response.ok) {
             if (response.status === 403) {
                 logger.warn('GitHub API rate limit exceeded');
-                return;
+                return null;
             }
             throw new Error(`GitHub API returned ${response.status}`);
         }
@@ -30,12 +33,17 @@ export const checkForUpdates = async () => {
             const downloadUrl = getApkDownloadUrl(data.assets);
 
             if (downloadUrl) {
-                showUpdateDialog(latestVersion, data.body, downloadUrl);
+                return {
+                    version: latestVersion,
+                    releaseNotes: data.body,
+                    downloadUrl: downloadUrl
+                };
             }
         }
     } catch (error) {
         logger.error('Failed to check for updates:', error);
     }
+    return null;
 };
 
 /**
@@ -66,21 +74,4 @@ const getApkDownloadUrl = (assets) => {
     return apkAsset ? apkAsset.browser_download_url : null;
 };
 
-const showUpdateDialog = (version, releaseNotes, url) => {
-    Alert.alert(
-        'Update Available 🚀',
-        `A new version (${version}) of QR Card Creator is available!\n\nWhat's New:\n${releaseNotes || 'Bug fixes and improvements.'}`,
-        [
-            {
-                text: 'Later',
-                style: 'cancel',
-            },
-            {
-                text: 'Update Now',
-                onPress: () => Linking.openURL(url),
-                style: 'default',
-            },
-        ],
-        { cancelable: true }
-    );
-};
+
