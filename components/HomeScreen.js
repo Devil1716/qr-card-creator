@@ -1,279 +1,229 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import GlassBackground from './GlassBackground';
+import GlassCard from './GlassCard';
 
-const HomeScreen = ({ 
-  onStartScanning, 
-  onViewHistory, 
+const HomeScreen = ({
+  onStartScanning,
+  onViewHistory,
   savedCardsCount,
   fadeAnim,
   pulseAnim,
 }) => {
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <View style={styles.heroSection}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <View style={styles.logoInnerCircle}>
-              <Ionicons name="qr-code" size={64} color={Colors.text} />
+    <GlassBackground>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+
+        {/* Top 40% - Viewing Area / Greetings */}
+        <View style={styles.viewingArea}>
+          <View style={styles.header}>
+            <Text style={styles.appName}>QR Card</Text>
+            <Text style={styles.appDesc}>Creator</Text>
+          </View>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{savedCardsCount}</Text>
+              <Text style={styles.statLabel}>Cards Saved</Text>
             </View>
-            <View style={styles.logoGlow} />
           </View>
         </View>
-        <Text style={styles.title}>QR Card Creator</Text>
-        <Text style={styles.subtitle}>
-          Scan, Personalize & Save Your Digital QR Cards
-        </Text>
-      </View>
 
-      <View style={styles.featuresContainer}>
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIcon, { backgroundColor: `${Colors.primary}20` }]}>
-            <Ionicons name="scan" size={28} color={Colors.primary} />
-          </View>
-          <Text style={styles.featureText}>Quick Scan</Text>
-        </View>
+        {/* Bottom 60% - Interaction Area */}
+        <View style={styles.interactionArea}>
+          <View style={styles.actionsContainer}>
 
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIcon, { backgroundColor: `${Colors.secondary}20` }]}>
-            <Ionicons name="person" size={28} color={Colors.secondary} />
-          </View>
-          <Text style={styles.featureText}>Personalize</Text>
-        </View>
+            {/* Primary Action - Huge Glass Button */}
+            <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
+              <TouchableOpacity
+                onPress={onStartScanning}
+                activeOpacity={0.9}
+                style={styles.scanButtonWrapper}
+              >
+                <LinearGradient
+                  colors={Colors.gradients.primary}
+                  style={styles.scanGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="scan-outline" size={48} color="#FFF" />
+                  <Text style={styles.scanText}>Scan New Code</Text>
+                  <View style={styles.scanShine} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
 
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIcon, { backgroundColor: `${Colors.accent}20` }]}>
-            <Ionicons name="share-social" size={28} color={Colors.accent} />
-          </View>
-          <Text style={styles.featureText}>Share</Text>
-        </View>
-      </View>
+            {/* Secondary Actions - Glass Cards */}
+            <View style={styles.grid}>
+              <TouchableOpacity onPress={onViewHistory} style={styles.gridItem}>
+                <GlassCard style={styles.gridCard} intensity={40}>
+                  <View style={styles.gridContent}>
+                    <View style={[styles.iconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                      <Ionicons name="layers-outline" size={24} color={Colors.success} />
+                    </View>
+                    <Text style={styles.gridTitle}>History</Text>
+                    <Text style={styles.gridDesc}>View {savedCardsCount} cards</Text>
+                  </View>
+                </GlassCard>
+              </TouchableOpacity>
 
-      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-        <TouchableOpacity
-          style={styles.scanButton}
-          onPress={onStartScanning}
-          activeOpacity={0.85}
-          accessibilityLabel="Start scanning QR code"
-          accessibilityRole="button"
-        >
-          <View style={styles.scanButtonInner}>
-            <View style={styles.scanButtonIconContainer}>
-              <Ionicons name="scan-circle" size={36} color={Colors.text} />
+              <View style={styles.gridItem}>
+                <GlassCard style={styles.gridCard} intensity={25}>
+                  <View style={styles.gridContent}>
+                    <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 140, 0, 0.2)' }]}>
+                      <Ionicons name="star-outline" size={24} color={Colors.accent} />
+                    </View>
+                    <Text style={styles.gridTitle}>Favorites</Text>
+                    <Text style={styles.gridDesc}>Coming Soon</Text>
+                  </View>
+                </GlassCard>
+              </View>
             </View>
-            <Text style={styles.scanButtonText}>Start Scanning</Text>
-            <Ionicons name="arrow-forward" size={20} color={Colors.text} style={styles.arrowIcon} />
+
           </View>
-          <View style={styles.scanButtonGlow} />
-        </TouchableOpacity>
+        </View>
+
       </Animated.View>
-
-      <TouchableOpacity 
-        style={styles.savedCardsSection} 
-        onPress={onViewHistory}
-        activeOpacity={0.7}
-        accessibilityLabel={savedCardsCount > 0 ? `View ${savedCardsCount} saved cards` : 'View saved cards history'}
-        accessibilityRole="button"
-      >
-        <View style={styles.savedCardsContent}>
-          <View style={styles.savedCardsIconContainer}>
-            <Ionicons name="folder-open" size={20} color={Colors.primary} />
-          </View>
-          <View style={styles.savedCardsTextContainer}>
-            <Text style={styles.savedCardsTitle}>View Saved Cards</Text>
-            <Text style={styles.savedCardsCount}>
-              {savedCardsCount > 0 
-                ? `${savedCardsCount} ${savedCardsCount === 1 ? 'card' : 'cards'} saved`
-                : 'No cards saved yet'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+    </GlassBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
+  },
+  // TOP SECTION
+  viewingArea: {
+    height: '45%',
     justifyContent: 'center',
-    paddingTop: 40,
+    paddingHorizontal: 30,
   },
-  heroSection: {
-    alignItems: 'center',
-    marginBottom: 50,
+  header: {
+    marginBottom: 20,
   },
-  logoContainer: {
-    marginBottom: 24,
-    position: 'relative',
-  },
-  logoCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 15,
-    position: 'relative',
-  },
-  logoInnerCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.primaryDark,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoGlow: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: Colors.primary,
-    opacity: 0.2,
-    zIndex: -1,
-  },
-  title: {
+  appName: {
     color: Colors.text,
-    fontSize: 36,
-    fontWeight: '800',
-    marginBottom: 12,
+    fontSize: 32,
+    fontWeight: '300',
     letterSpacing: -0.5,
+    opacity: 0.9,
   },
-  subtitle: {
-    color: Colors.textSecondary,
-    fontSize: 17,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    lineHeight: 24,
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 50,
-    paddingHorizontal: 10,
-  },
-  featureItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  featureIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  featureText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  scanButton: {
-    alignSelf: 'center',
-    borderRadius: 30,
-    overflow: 'visible',
-    position: 'relative',
-    width: '100%',
-    maxWidth: 320,
-  },
-  scanButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 20,
-    gap: 12,
-    borderRadius: 30,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  scanButtonIconContainer: {
-    marginRight: 4,
-  },
-  scanButtonText: {
+  appDesc: {
     color: Colors.text,
-    fontSize: 20,
+    fontSize: 48,
     fontWeight: '700',
+    letterSpacing: -1,
+    lineHeight: 52,
+    marginTop: -5,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    marginTop: 20,
+  },
+  statItem: {
+    paddingRight: 30,
+  },
+  statNumber: {
+    color: Colors.primaryLight,
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  statLabel: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+
+  // BOTTOM SECTION
+  interactionArea: {
+    height: '55%',
+    justifyContent: 'flex-end',
+    paddingBottom: 50,
+    paddingHorizontal: 20,
+  },
+  actionsContainer: {
+    gap: 20,
+    width: '100%',
+  },
+
+  // SCAN BUTTON
+  scanButtonWrapper: {
+    width: '100%',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  scanGradient: {
+    height: 140,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  scanText: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 10,
     letterSpacing: 0.5,
   },
-  arrowIcon: {
-    marginLeft: 4,
-  },
-  scanButtonGlow: {
+  scanShine: {
     position: 'absolute',
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: 40,
-    backgroundColor: Colors.primary,
-    opacity: 0.1,
-    zIndex: -1,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
   },
-  savedCardsSection: {
-    marginTop: 32,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  savedCardsContent: {
+
+  // GRID
+  grid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 15,
   },
-  savedCardsIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: `${Colors.primary}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  savedCardsTextContainer: {
+  gridItem: {
     flex: 1,
   },
-  savedCardsTitle: {
+  gridCard: {
+    height: 140,
+    marginVertical: 0, // override default
+  },
+  gridContent: {
+    height: '100%',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gridTitle: {
     color: Colors.text,
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  savedCardsCount: {
-    color: Colors.textSecondary,
-    fontSize: 13,
+  gridDesc: {
+    color: Colors.textMuted,
+    fontSize: 12,
   },
 });
 
-HomeScreen.propTypes = {
-  onStartScanning: PropTypes.func.isRequired,
-  onViewHistory: PropTypes.func.isRequired,
-  savedCardsCount: PropTypes.number.isRequired,
-  fadeAnim: PropTypes.instanceOf(Animated.Value).isRequired,
-  pulseAnim: PropTypes.instanceOf(Animated.Value).isRequired,
-};
-
 export default HomeScreen;
-
