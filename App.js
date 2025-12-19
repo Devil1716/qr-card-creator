@@ -79,6 +79,15 @@ export default function App() {
 
     setIsDownloading(true);
     try {
+      const downloadDest = FileSystem.cacheDirectory + 'app-update.apk';
+
+      // Clean up any old file first to ensure fresh download
+      try {
+        await FileSystem.deleteAsync(downloadDest, { idempotent: true });
+      } catch (e) {
+        // Ignore delete errors
+      }
+
       const callback = downloadProgress => {
         const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
         setDownloadProgress(progress);
@@ -86,7 +95,7 @@ export default function App() {
 
       const downloadResumable = FileSystem.createDownloadResumable(
         updateInfo.downloadUrl,
-        FileSystem.cacheDirectory + 'app-update.apk',
+        downloadDest,
         {},
         callback
       );
@@ -98,8 +107,8 @@ export default function App() {
       }
 
       const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (!fileInfo.exists || fileInfo.size < 1000000) {
-        throw new Error('Downloaded file corrupted');
+      if (!fileInfo.exists || fileInfo.size < 500000) {
+        throw new Error(`Downloaded file corrupted (Size: ${fileInfo.size}b)`);
       }
 
       // Install APK
@@ -113,7 +122,8 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
-      Alert.alert('Update Failed', 'Could not download the update. Please try again.');
+      console.error(e);
+      Alert.alert('Update Failed', `Error: ${e.message}`);
     } finally {
       setIsDownloading(false);
       setShowUpdateModal(false);
