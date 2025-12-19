@@ -4,23 +4,24 @@ import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../constants/colors';
 import { CARD_DEFAULTS } from '../constants/storage';
 
-const QRCard = ({ 
-  qrData, 
-  userName, 
-  onNameChange, 
+const QRCard = ({
+  qrData,
+  userName,
+  onNameChange,
   viewShotRef,
   isLoading = false,
   onLayout,
 }) => {
   return (
     <View style={styles.wrapper} onLayout={onLayout}>
-      <ViewShot 
-        ref={viewShotRef} 
-        options={{ 
-          format: 'png', 
+      <ViewShot
+        ref={viewShotRef}
+        options={{
+          format: 'png',
           quality: 1,
           result: 'tmpfile',
           snapshotContentContainer: false,
@@ -28,67 +29,83 @@ const QRCard = ({
         collapsable={false}
       >
         <View style={styles.card}>
-        <View style={styles.gradient}>
-          <View style={styles.gradientPattern} />
-          <View style={styles.gradientOverlay} />
-        </View>
+          {/* Main Background Gradient (Blue -> Green) */}
+          <LinearGradient
+            colors={[Colors.primary, '#009966', Colors.secondary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradient}
+          >
+            {/* Holographic/Texture Overlay */}
+            <LinearGradient
+              colors={['rgba(255,255,255,0.1)', 'transparent', 'rgba(255,255,255,0.05)']}
+              style={styles.textureOverlay}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0.5 }}
+            />
 
-        <View style={styles.content}>
-          <View style={styles.badge}>
-            <View style={styles.badgeIconContainer}>
-              <Ionicons name="shield-checkmark" size={18} color={Colors.primary} />
+            {/* R8 Watermark */}
+            <View style={styles.watermarkContainer}>
+              <Text style={styles.watermarkText}>R8</Text>
             </View>
-            <Text style={styles.badgeText}>VERIFIED</Text>
-          </View>
+          </LinearGradient>
 
-          <View style={styles.qrContainer}>
-            <View style={styles.qrInnerContainer}>
-              <QRCode
-                value={qrData || 'No Data'}
-                size={CARD_DEFAULTS.QR_SIZE}
-                color={Colors.backgroundSecondary}
-                backgroundColor={Colors.cardBackground}
-              />
-            </View>
-            <View style={styles.qrGlow} />
-          </View>
-
-          <View style={styles.userInfo}>
-            <View style={styles.nameInputContainer}>
-              <Ionicons name="person-outline" size={20} color={Colors.primary} style={styles.nameIcon} />
-              <TextInput
-                style={styles.nameInput}
-                placeholder="Enter Your Name"
-                placeholderTextColor={Colors.textMuted}
-                value={userName}
-                onChangeText={onNameChange}
-                maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
-                editable={!isLoading}
-                accessibilityLabel="Enter your name"
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.dataContainer}>
-              <View style={styles.dataLabelContainer}>
-                <Ionicons name="code-outline" size={14} color={Colors.textMuted} />
-                <Text style={styles.dataLabel}>QR CODE DATA</Text>
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <View style={styles.badge}>
+                <View style={styles.badgeIconContainer}>
+                  <Ionicons name="shield-checkmark" size={14} color={Colors.primary} />
+                </View>
+                <Text style={styles.badgeText}>VERIFIED</Text>
               </View>
-              <Text style={styles.dataValue} numberOfLines={3}>
-                {qrData}
-              </Text>
             </View>
 
-            <View style={styles.timestampContainer}>
-              <Ionicons name="time-outline" size={16} color={Colors.textMuted} />
-              <Text style={styles.timestamp}>
-                Created: {new Date().toLocaleString()}
-              </Text>
+            <View style={styles.qrContainer}>
+              <View style={styles.qrInnerContainer}>
+                <QRCode
+                  value={qrData || 'No Data'}
+                  size={CARD_DEFAULTS.QR_SIZE}
+                  logoBackgroundColor='transparent'
+                  color={Colors.backgroundSecondary}
+                  backgroundColor={Colors.cardBackground}
+                />
+                {/* R8 Tiny Logo Center (Simulated with Text if no image, or just keep pure QR) 
+                     Actually standard QR is cleaner. 
+                 */}
+              </View>
+              {/* Glow effect behind QR */}
+              <View style={styles.qrGlow} />
+            </View>
+
+            <Text style={styles.scanMeText}>SCAN ME</Text>
+
+            <View style={styles.userInfo}>
+              <View style={styles.nameInputContainer}>
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder="ENTER NAME"
+                  placeholderTextColor={'rgba(255,255,255,0.6)'}
+                  value={userName}
+                  onChangeText={onNameChange}
+                  maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
+                  editable={!isLoading}
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              <View style={styles.dataContainer}>
+                <Text style={styles.dataLabel}>DATA PAYLOAD</Text>
+                <Text style={styles.dataValue} numberOfLines={2}>
+                  {qrData}
+                </Text>
+              </View>
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Powered by R8 Scanner</Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
       </ViewShot>
     </View>
   );
@@ -98,166 +115,164 @@ const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 20,
   },
   card: {
-    margin: 20,
-    borderRadius: 28,
-    backgroundColor: Colors.cardBackground,
+    width: 320,
+    borderRadius: 30,
+    backgroundColor: Colors.backgroundSecondary, // Fallback
     overflow: 'hidden',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.4,
-    shadowRadius: 25,
-    elevation: 15,
-  },
-  gradient: {
-    height: 100,
-    backgroundColor: Colors.primary,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
     position: 'relative',
   },
-  gradientPattern: {
+  gradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Colors.overlayLight,
-    opacity: 0.3,
+    height: '100%',
   },
-  gradientOverlay: {
+  textureOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: Colors.secondary,
-    opacity: 0.2,
+    height: '100%',
+    zIndex: 1,
+  },
+  watermarkContainer: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    zIndex: 1,
+  },
+  watermarkText: {
+    fontSize: 180,
+    fontWeight: '900',
+    color: '#000',
+    opacity: 0.05,
+    transform: [{ rotate: '-15deg' }],
   },
   content: {
-    padding: 28,
+    padding: 20,
     alignItems: 'center',
-    marginTop: -50,
+    zIndex: 10,
+  },
+  header: {
+    width: '100%',
+    alignItems: 'flex-end',
+    marginBottom: 10,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.badgeBackground,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
-    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   badgeIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: `${Colors.primary}15`,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E6F0FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   badgeText: {
     color: Colors.primary,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
     letterSpacing: 1,
   },
   qrContainer: {
+    marginTop: 10,
+    marginBottom: 10,
     position: 'relative',
-    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qrInnerContainer: {
-    padding: 24,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: Colors.divider,
+    padding: 15,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   qrGlow: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 24,
-    backgroundColor: Colors.primary,
-    opacity: 0.05,
+    width: 260,
+    height: 260,
+    backgroundColor: '#fff',
+    borderRadius: 130,
+    opacity: 0.15,
     zIndex: -1,
+    transform: [{ scale: 1.1 }],
+  },
+  scanMeText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 3,
+    marginBottom: 25,
+    marginTop: 5,
   },
   userInfo: {
     width: '100%',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   nameInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.primary,
-    marginBottom: 18,
-    paddingBottom: 12,
-  },
-  nameIcon: {
-    marginRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.3)',
+    marginBottom: 15,
+    paddingBottom: 5,
   },
   nameInput: {
-    flex: 1,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: Colors.backgroundSecondary,
+    color: '#fff',
     textAlign: 'center',
-    paddingVertical: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.divider,
-    marginVertical: 16,
+    letterSpacing: 1,
   },
   dataContainer: {
-    backgroundColor: Colors.dataBackground,
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: Colors.divider,
-  },
-  dataLabelContainer: {
-    flexDirection: 'row',
+    marginBottom: 15,
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
   },
   dataLabel: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    letterSpacing: 1.2,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
     fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   dataValue: {
-    fontSize: 15,
-    color: Colors.backgroundSecondary,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  timestampContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingTop: 8,
-  },
-  timestamp: {
-    color: Colors.textMuted,
     fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
     fontWeight: '500',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  footerText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.4)',
+    fontStyle: 'italic',
   },
 });
 

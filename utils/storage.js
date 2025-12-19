@@ -1,6 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../constants/storage';
+import * as FileSystem from 'expo-file-system';
 import logger from './logger';
+
+/**
+ * Load saved QR cards from storage
+ * @returns {Promise<Array>} Array of saved cards
+ */
+// Helper to construct current path
+const getCurrentImagePath = (fileName) => {
+  const baseDir = FileSystem.documentDirectory;
+  return `${baseDir}QRCards/${fileName}`;
+};
 
 /**
  * Load saved QR cards from storage
@@ -10,7 +21,39 @@ export const loadSavedCards = async () => {
   try {
     const storedCards = await AsyncStorage.getItem(STORAGE_KEYS.QR_CARDS);
     if (storedCards !== null) {
-      return JSON.parse(storedCards);
+      const parsedCards = JSON.parse(storedCards);
+
+      // Fix paths dynamically on load
+      return parsedCards.map(card => {
+        // If we have a fileName, rebuild the path
+        if (card.fileName) {
+          return {
+            ...card,
+            imageUri: getCurrentImagePath(card.fileName)
+          };
+        }
+
+        // Legacy Support: Attempt to extract filename from old absolute path if it exists
+        if (card.imageUri) {
+          try {
+            // Handle both / and \ paths just in case
+            const cleanPath = card.imageUri.replace(/\\/g, '/');
+            const extractedName = cleanPath.split('/').pop();
+            if (extractedName && (extractedName.endsWith('.png') || extractedName.endsWith('.jpg'))) {
+              // It's a valid looking filename, let's use it relative to current doc dir
+              return {
+                ...card,
+                fileName: extractedName, // Save it for next time (implicit migration in memory)
+                imageUri: getCurrentImagePath(extractedName)
+              };
+            }
+          } catch (err) {
+            console.warn('Failed to migrate legacy path:', card.imageUri);
+          }
+        }
+
+        return card;
+      });
     }
     return [];
   } catch (error) {

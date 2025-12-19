@@ -86,12 +86,21 @@ export default function App() {
 
       const downloadResumable = FileSystem.createDownloadResumable(
         updateInfo.downloadUrl,
-        FileSystem.documentDirectory + 'app-update.apk',
+        FileSystem.cacheDirectory + 'app-update.apk',
         {},
         callback
       );
 
-      const { uri } = await downloadResumable.downloadAsync();
+      const { uri, status } = await downloadResumable.downloadAsync();
+
+      if (status !== 200) {
+        throw new Error(`Download failed with status ${status}`);
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists || fileInfo.size < 1000000) {
+        throw new Error('Downloaded file corrupted');
+      }
 
       // Install APK
       if (Platform.OS === 'android') {
@@ -264,6 +273,7 @@ export default function App() {
           data: scannedData,
           name: userName || CARD_DEFAULTS.ANONYMOUS_NAME,
           timestamp: new Date().toLocaleString(),
+          fileName: fileName,
           imageUri: internalUri,
         };
 
