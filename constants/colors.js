@@ -44,6 +44,7 @@ export const Colors = {
   borderLight: 'rgba(255, 255, 255, 0.05)',
   cardBackground: '#ffffff',
   overlay: 'rgba(5, 5, 10, 0.8)',
+  overlayMedium: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(255, 255, 255, 0.1)',
   overlayDark: 'rgba(0, 0, 0, 0.8)',
 

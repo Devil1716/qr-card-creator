@@ -28,6 +28,8 @@ import QRCard from './components/QRCard';
 import HistoryScreen from './components/HistoryScreen';
 import HomeScreen from './components/HomeScreen';
 import UpdateModal from './components/UpdateModal';
+import GlassBackground from './components/GlassBackground';
+import GlassCard from './components/GlassCard';
 
 // Utils & Constants
 import { loadSavedCards, addCardToStorage } from './utils/storage';
@@ -432,88 +434,76 @@ export default function App() {
   // QR Card screen
   if (showQRCard) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.cardHeader}>
-            <TouchableOpacity
-              onPress={resetScanner}
-              style={styles.backButtonCard}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-            >
-              <Ionicons name="arrow-back" size={24} color={Colors.text} />
-            </TouchableOpacity>
-            <Text style={styles.cardHeaderTitle}>Your Digital QR Card</Text>
-          </View>
-
-          <QRCard
-            qrData={scannedData}
-            userName={userName}
-            onNameChange={setUserName}
-            viewShotRef={viewShotRef}
-            isLoading={isLoading}
-            onLayout={() => setIsViewReady(true)}
-          />
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.saveButton]}
-              onPress={saveQRCardToGallery}
-              disabled={isLoading}
-              activeOpacity={0.85}
-              accessibilityLabel="Save QR card"
-              accessibilityRole="button"
-            >
-              <View style={styles.actionButtonContent}>
-                <View style={styles.actionButtonIconContainer}>
-                  <Ionicons
-                    name={isLoading ? "hourglass-outline" : "download-outline"}
-                    size={22}
-                    color={Colors.text}
-                  />
-                </View>
-                <Text style={styles.actionButtonText}>
-                  {isLoading ? 'Saving...' : 'Save Card'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.shareButton]}
-              onPress={shareQRCard}
-              disabled={isLoading}
-              activeOpacity={0.85}
-              accessibilityLabel="Share QR card"
-              accessibilityRole="button"
-            >
-              <View style={styles.actionButtonContent}>
-                <View style={styles.actionButtonIconContainer}>
-                  <Ionicons name="share-outline" size={22} color={Colors.text} />
-                </View>
-                <Text style={styles.actionButtonText}>Share</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.scanAgainButton}
-            onPress={() => {
-              resetScanner();
-              startScanner();
-            }}
-            disabled={isLoading}
-            activeOpacity={0.8}
-            accessibilityLabel="Scan another QR code"
-            accessibilityRole="button"
-          >
-            <View style={styles.scanAgainButtonContent}>
-              <Ionicons name="scan-outline" size={22} color={Colors.primary} />
-              <Text style={styles.scanAgainText}>Scan Another Code</Text>
+        <GlassBackground>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.glassHeader}>
+              <TouchableOpacity
+                onPress={resetScanner}
+                style={styles.glassBackButton}
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
+              >
+                <Ionicons name="arrow-back" size={24} color={Colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.glassHeaderTitle}>Digital Card</Text>
             </View>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
+
+            <ScrollView contentContainerStyle={styles.glassContent}>
+              <View style={styles.cardPresentation}>
+                <QRCard
+                  qrData={scannedData}
+                  userName={userName}
+                  onNameChange={setUserName}
+                  viewShotRef={viewShotRef}
+                  isLoading={isLoading}
+                  onLayout={() => setIsViewReady(true)}
+                />
+              </View>
+
+              <View style={styles.glassActions}>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={saveQRCardToGallery}
+                    disabled={isLoading}
+                  >
+                    <GlassCard intensity={30} style={styles.glassActionBtn}>
+                      <Ionicons name={isLoading ? "hourglass" : "download-outline"} size={24} color={Colors.success} />
+                      <Text style={styles.glassActionText}>Save Gallery</Text>
+                    </GlassCard>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={shareQRCard}
+                    disabled={isLoading}
+                  >
+                    <GlassCard intensity={30} style={styles.glassActionBtn}>
+                      <Ionicons name="share-social-outline" size={24} color={Colors.primary} />
+                      <Text style={styles.glassActionText}>Share</Text>
+                    </GlassCard>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    resetScanner();
+                    startScanner();
+                  }}
+                  style={styles.scanAgainWrapper}
+                >
+                  <GlassCard intensity={20} style={styles.scanAgainBtn}>
+                    <Ionicons name="scan" size={20} color={Colors.textSecondary} />
+                    <Text style={styles.scanAgainTextGlass}>Scan Another Code</Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </GlassBackground>
+      </View>
     );
   }
 
@@ -636,5 +626,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  // New Glass Styles
+  glassHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  glassBackButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glassHeaderTitle: {
+    color: Colors.text,
+    fontSize: 20,
+    fontWeight: '600',
+    marginLeft: 15,
+  },
+  glassContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
+  cardPresentation: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  glassActions: {
+    paddingHorizontal: 30,
+    marginTop: 10,
+    gap: 16,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  glassActionBtn: {
+    height: 100,
+    padding: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  glassActionText: {
+    color: Colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scanAgainWrapper: {
+    marginTop: 10,
+  },
+  scanAgainBtn: {
+    flexDirection: 'row',
+    height: 56,
+    padding: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scanAgainTextGlass: {
+    color: Colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

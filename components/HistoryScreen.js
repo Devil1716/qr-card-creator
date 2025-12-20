@@ -1,11 +1,3 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, Modal, Pressable } from 'react-native';
-import PropTypes from 'prop-types';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
-import { deleteCardFromStorage } from '../utils/storage';
-import { ErrorMessages, SuccessMessages } from '../utils/errors';
-import * as Sharing from 'expo-sharing';
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, Modal } from 'react-native';
