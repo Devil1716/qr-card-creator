@@ -20,6 +20,12 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 
+import { NavigationContainer } from '@react-navigation/native';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from './src/config/firebase';
+import AuthNavigator from './src/navigation/AuthNavigator';
+
 // Components
 import LoadingScreen from './components/LoadingScreen';
 import PermissionScreen from './components/PermissionScreen';
@@ -31,6 +37,10 @@ import UpdateModal from './components/UpdateModal';
 import GlassBackground from './components/GlassBackground';
 import GlassCard from './components/GlassCard';
 
+// New Screens
+import StudentDashboard from './src/screens/student/StudentDashboard';
+import DriverDashboard from './src/screens/driver/DriverDashboard';
+
 // Utils & Constants
 import { loadSavedCards, addCardToStorage } from './utils/storage';
 import { checkForUpdates } from './utils/updater';
@@ -40,6 +50,11 @@ import { CARD_DEFAULTS } from './constants/storage';
 import logger from './utils/logger';
 
 export default function App() {
+  // Auth State
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null); // 'student' | 'driver'
+  const [initializing, setInitializing] = useState(true);
+
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   const [scanned, setScanned] = useState(false);
@@ -62,11 +77,38 @@ export default function App() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Load saved cards and check for updates
+  // Handle User State Changes
   useEffect(() => {
-    initializeApp();
-    handleCheckForUpdates();
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        // Fetch role from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', u.uid));
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role || 'student');
+          } else {
+            setRole('student'); // Default if doc missing
+          }
+        } catch (error) {
+          console.error("Error fetching role:", error);
+          setRole('student');
+        }
+      } else {
+        setRole(null);
+      }
+      setUser(u);
+      if (initializing) setInitializing(false);
+    });
+    return unsubscribe;
   }, []);
+
+  // Load saved cards and check for updates (Only if user is logged in)
+  useEffect(() => {
+    if (user) {
+      initializeApp();
+      handleCheckForUpdates();
+    }
+  }, [user]);
 
   const handleCheckForUpdates = async () => {
     const update = await checkForUpdates();
@@ -183,18 +225,38 @@ export default function App() {
     }
   };
 
-  const handleBarcodeScanned = ({ type, data }) => {
+  const handleBarcodeScanned = async ({ type, data }) => {
     if (!scanned && data) {
       // Validate QR data length
       if (data.length > CARD_DEFAULTS.MAX_DATA_LENGTH) {
-        Alert.alert('Error', 'QR code data is too long. Maximum length is 500 characters.');
+        Alert.alert('Error', 'QR code data is too long.');
         return;
       }
 
       setScanned(true);
       setScannedData(data);
+
+      // Try to parse as Bus System QR
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.busId) {
+          setIsLoading(true);
+          // Update User Profile in Firestore
+          await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+            busId: parsed.busId,
+            stopId: parsed.stopId || 'Default Stop',
+            lastScan: new Date().toISOString()
+          });
+          Alert.alert('Success', `Account linked to Bus: ${parsed.busId}`);
+        }
+      } catch (e) {
+        // Not a JSON/Bus QR, treat as generic data (existing behavior)
+        console.log("Generic QR scanned:", data);
+      }
+
       setShowScanner(false);
       setShowQRCard(true);
+      setIsLoading(false);
     }
   };
 
@@ -384,6 +446,24 @@ export default function App() {
     setSavedCards(cards);
   };
 
+  // Auth Loading
+  if (initializing) {
+    return (
+      <View style={styles.container}>
+        <LoadingScreen animatedValue={fadeAnim} />
+      </View>
+    );
+  }
+
+  // Not Logged In
+  if (!user) {
+    return (
+      <NavigationContainer>
+        <AuthNavigator />
+      </NavigationContainer>
+    );
+  }
+
   // Loading state
   if (!permission) {
     return (
@@ -507,16 +587,24 @@ export default function App() {
     );
   }
 
-  // Home Screen
+  // Driver Screen
+  if (role === 'driver') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <DriverDashboard onSignOut={() => signOut(auth)} />
+      </SafeAreaView>
+    );
+  }
+
+  // Home Screen (Student Dashboard)
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <HomeScreen
+      <StudentDashboard
         onStartScanning={startScanner}
         onViewHistory={() => setShowHistory(true)}
-        savedCardsCount={savedCards.length}
-        fadeAnim={fadeAnim}
-        pulseAnim={pulseAnim}
+        onSignOut={() => signOut(auth)}
       />
 
       <UpdateModal

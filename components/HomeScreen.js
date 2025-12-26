@@ -13,6 +13,7 @@ const HomeScreen = ({
   savedCardsCount,
   fadeAnim,
   pulseAnim,
+  onSignOut,
 }) => {
   return (
     <GlassBackground>
@@ -20,9 +21,14 @@ const HomeScreen = ({
 
         {/* Top 40% - Viewing Area / Greetings */}
         <View style={styles.viewingArea}>
-          <View style={styles.header}>
-            <Text style={styles.appName}>QR Card</Text>
-            <Text style={styles.appDesc}>Creator</Text>
+          <View style={styles.topRow}>
+            <View style={styles.header}>
+              <Text style={styles.appName}>QR Card</Text>
+              <Text style={styles.appDesc}>Creator</Text>
+            </View>
+            <TouchableOpacity onPress={onSignOut} style={styles.signOutBtn}>
+              <Ionicons name="log-out-outline" size={28} color={Colors.error} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.statsContainer}>
@@ -103,7 +109,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
   },
   header: {
+    // marginBottom: 20, // Moved to topRow alignment
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 20,
+    width: '100%',
+  },
+  signOutBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)', // Error color light
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
   },
   appName: {
     color: Colors.text,
