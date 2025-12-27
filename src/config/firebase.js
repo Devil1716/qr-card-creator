@@ -1,9 +1,8 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Ensure strict key usage
 const firebaseConfig = {
     apiKey: "AIzaSyAU8P1iEQbetZtx3lleqmyKMCXmJTeSMDk",
     authDomain: "bus-qr-e7c4d.firebaseapp.com",
@@ -14,18 +13,16 @@ const firebaseConfig = {
     measurementId: "G-21K6N9074M"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Initialize Auth with persistence
-// We use a try-catch to fallback to getAuth if initializeAuth fails (e.g. if already initialized)
+let app;
 let auth;
-try {
+
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
     auth = initializeAuth(app, {
         persistence: getReactNativePersistence(AsyncStorage)
     });
-} catch (e) {
-    // If auth is already initialized, get the existing instance
+} else {
+    app = getApp();
     auth = getAuth(app);
 }
 
