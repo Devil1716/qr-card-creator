@@ -33,7 +33,7 @@ const GlassCard = ({
         }).start();
     };
 
-    const CardContent = () => (
+    const content = (
         <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }], width }]}>
             {/* 1px Gradient Border */}
             <LinearGradient
@@ -50,7 +50,6 @@ const GlassCard = ({
                             </View>
                         </BlurView>
                     ) : (
-                        // Android Fallback (BlurView can be heavy on legacy android, using translucent bg)
                         <View style={[styles.blur, styles.androidBlur]}>
                             <View style={styles.content}>
                                 {children}
@@ -70,12 +69,12 @@ const GlassCard = ({
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
             >
-                <CardContent />
+                {content}
             </TouchableOpacity>
         );
     }
 
-    return <CardContent />;
+    return content;
 };
 
 const styles = StyleSheet.create({
