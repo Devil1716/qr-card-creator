@@ -2,7 +2,7 @@
   "expo": {
     "name": "R8",
     "slug": "qr-card-creator",
-    "version": "1.6.2",
+    "version": "1.6.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
