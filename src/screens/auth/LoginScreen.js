@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated, Easing, Keyboard } from 'react-native';
+import React, { useState, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
@@ -14,18 +14,25 @@ const LoginScreen = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [isAutoMode, setIsAutoMode] = useState(true);
     const [rememberMe, setRememberMe] = useState(true);
 
     // Seeding State
     const [isSeeding, setIsSeeding] = useState(false);
     const [seedStatus, setSeedStatus] = useState('');
 
-    // Animations
+    // Animations - run only once on mount
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
+    const hasAnimated = useRef(false);
 
-    useEffect(() => {
+    // Use useMemo instead of useEffect for isAutoMode to prevent re-renders
+    const isAutoMode = useMemo(() => !identifier.includes('@'), [identifier]);
+
+    // Run animation only once
+    React.useEffect(() => {
+        if (hasAnimated.current) return;
+        hasAnimated.current = true;
+
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -82,7 +89,7 @@ const LoginScreen = ({ navigation }) => {
     const handleSeeding = async () => {
         Alert.alert(
             "Admin Action",
-            "This will create accounts for all 22 preset users. existing users may error out (safe to ignore). Continue?",
+            "This will create accounts for all 22 preset users. Existing users may error out (safe to ignore). Continue?",
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -100,123 +107,129 @@ const LoginScreen = ({ navigation }) => {
         );
     };
 
-    useEffect(() => {
-        if (identifier.includes('@')) {
-            setIsAutoMode(false);
-        } else {
-            setIsAutoMode(true);
-        }
-    }, [identifier]);
-
     return (
         <GlassBackground>
-            <View style={styles.container}>
-                <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <KeyboardAvoidingView
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Welcome Back</Text>
-                        <Text style={styles.subtitle}>Enter your Name to access your pass.</Text>
-                        {/* Hidden/Subtle trigger logic can be complex, using visible button for clarity as requested */}
-                    </View>
+                        <View style={styles.header}>
+                            <Text style={styles.title}>Welcome Back</Text>
+                            <Text style={styles.subtitle}>Enter your Name to access your pass.</Text>
+                        </View>
 
-                    <GlassCard style={styles.card}>
-                        <View style={styles.form}>
+                        <GlassCard style={styles.card}>
+                            <View style={styles.form}>
 
-                            {/* Identifier Input */}
-                            <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>FULL NAME / ID</Text>
-                                <View style={styles.inputContainer}>
-                                    <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="e.g. Rahul Sharma"
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
-                                        value={identifier}
-                                        onChangeText={setIdentifier}
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                    />
-                                </View>
-                            </View>
-
-                            {/* Password Section */}
-                            {!isAutoMode && (
-                                <Animated.View style={styles.inputWrapper}>
-                                    <Text style={styles.label}>PASSWORD</Text>
+                                {/* Identifier Input */}
+                                <View style={styles.inputWrapper}>
+                                    <Text style={styles.label}>FULL NAME / ID</Text>
                                     <View style={styles.inputContainer}>
-                                        <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                        <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
                                         <TextInput
                                             style={styles.input}
-                                            placeholder="Enter Password"
+                                            placeholder="e.g. Rahul Sharma"
                                             placeholderTextColor="rgba(255,255,255,0.3)"
-                                            value={password}
-                                            onChangeText={setPassword}
-                                            secureTextEntry={!showPassword}
+                                            value={identifier}
+                                            onChangeText={setIdentifier}
+                                            autoCapitalize="none"
+                                            autoCorrect={false}
+                                            returnKeyType={isAutoMode ? "done" : "next"}
+                                            blurOnSubmit={isAutoMode}
+                                            onSubmitEditing={isAutoMode ? handleLogin : undefined}
                                         />
-                                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                            <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.6)" />
-                                        </TouchableOpacity>
                                     </View>
-                                </Animated.View>
-                            )}
-
-                            {/* Remember Me Checkbox */}
-                            <TouchableOpacity
-                                style={styles.rememberRow}
-                                onPress={() => setRememberMe(!rememberMe)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-                                    {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
                                 </View>
-                                <Text style={styles.rememberText}>Remember me</Text>
-                            </TouchableOpacity>
 
-                            {isSeeding && (
-                                <View style={styles.seedingContainer}>
-                                    <ActivityIndicator size="small" color={Colors.secondary} />
-                                    <Text style={styles.seedingText}>{seedStatus}</Text>
-                                </View>
-                            )}
+                                {/* Password Section - Always rendered but conditionally visible */}
+                                {!isAutoMode && (
+                                    <View style={styles.inputWrapper}>
+                                        <Text style={styles.label}>PASSWORD</Text>
+                                        <View style={styles.inputContainer}>
+                                            <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Enter Password"
+                                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                                value={password}
+                                                onChangeText={setPassword}
+                                                secureTextEntry={!showPassword}
+                                                returnKeyType="done"
+                                                onSubmitEditing={handleLogin}
+                                            />
+                                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.6)" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
 
-                            {/* Login Button */}
-                            <TouchableOpacity
-                                onPress={handleLogin}
-                                disabled={isLoading || isSeeding}
-                                activeOpacity={0.9}
-                            >
-                                <LinearGradient
-                                    colors={[Colors.primary, '#4a90e2']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={styles.loginButton}
+                                {/* Remember Me Checkbox */}
+                                <TouchableOpacity
+                                    style={styles.rememberRow}
+                                    onPress={() => setRememberMe(!rememberMe)}
+                                    activeOpacity={0.8}
                                 >
-                                    {isLoading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <Text style={styles.loginButtonText}>
-                                            {isAutoMode ? "Enter R8" : "Sign In"}
-                                        </Text>
-                                    )}
-                                </LinearGradient>
-                            </TouchableOpacity>
+                                    <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                                        {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+                                    </View>
+                                    <Text style={styles.rememberText}>Remember me</Text>
+                                </TouchableOpacity>
 
-                            {/* Manual Seed Button */}
-                            <TouchableOpacity onPress={handleSeeding} style={styles.seedLink} >
-                                <Text style={styles.seedLinkText}>Admin: Seed Database</Text>
-                            </TouchableOpacity>
+                                {isSeeding && (
+                                    <View style={styles.seedingContainer}>
+                                        <ActivityIndicator size="small" color={Colors.secondary} />
+                                        <Text style={styles.seedingText}>{seedStatus}</Text>
+                                    </View>
+                                )}
 
+                                {/* Login Button */}
+                                <TouchableOpacity
+                                    onPress={handleLogin}
+                                    disabled={isLoading || isSeeding}
+                                    activeOpacity={0.9}
+                                >
+                                    <LinearGradient
+                                        colors={[Colors.primary, '#4a90e2']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.loginButton}
+                                    >
+                                        {isLoading ? (
+                                            <ActivityIndicator color="#fff" />
+                                        ) : (
+                                            <Text style={styles.loginButtonText}>
+                                                {isAutoMode ? "Enter R8" : "Sign In"}
+                                            </Text>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
+
+                                {/* Manual Seed Button */}
+                                <TouchableOpacity onPress={handleSeeding} style={styles.seedLink} >
+                                    <Text style={styles.seedLinkText}>Admin: Seed Database</Text>
+                                </TouchableOpacity>
+
+                            </View>
+                        </GlassCard>
+
+                        <View style={styles.footer}>
+                            <Text style={styles.footerText}>New here? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                                <Text style={styles.linkText}>Create ID</Text>
+                            </TouchableOpacity>
                         </View>
-                    </GlassCard>
-
-                    <View style={styles.footer}>
-                        <Text style={styles.footerText}>New here? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                            <Text style={styles.linkText}>Create ID</Text>
-                        </TouchableOpacity>
-                    </View>
-                </Animated.View>
-            </View>
+                    </Animated.View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </GlassBackground>
     );
 };
@@ -224,6 +237,9 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: 'center',
         padding: 24,
     },

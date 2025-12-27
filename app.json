@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "QR Card Creator",
+    "name": "R8",
     "slug": "qr-card-creator",
-    "version": "1.5.0",
+    "version": "1.6.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -30,7 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.qrcardcreator.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",

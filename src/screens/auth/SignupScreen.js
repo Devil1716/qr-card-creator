@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Animated, Dimensions, Easing } from 'react-native';
+import React, { useState, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Animated, Dimensions, Easing, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -16,11 +16,24 @@ const SignupScreen = ({ navigation }) => {
     const [role, setRole] = useState('student'); // 'student' | 'driver'
     const [isLoading, setIsLoading] = useState(false);
 
-    // Animations
+    // Animations - run only once
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
+    const hasAnimated = useRef(false);
 
-    useEffect(() => {
+    // Memoize credentials to prevent re-renders
+    const generatedCredentials = useMemo(() => {
+        const cleanName = name.trim().replace(/\s+/g, '').toLowerCase();
+        const base = cleanName.length > 0 ? cleanName : 'user';
+        const email = `${base}@r8.bus`;
+        const password = email;
+        return { email, password };
+    }, [name]);
+
+    React.useEffect(() => {
+        if (hasAnimated.current) return;
+        hasAnimated.current = true;
+
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -37,15 +50,6 @@ const SignupScreen = ({ navigation }) => {
         ]).start();
     }, []);
 
-    const generateCredentials = (inputName) => {
-        const cleanName = inputName.trim().replace(/\s+/g, '').toLowerCase();
-        // Fallback for empty name to avoid invalid email
-        const base = cleanName.length > 0 ? cleanName : 'user';
-        const email = `${base}@r8.bus`;
-        const password = email;
-        return { email, password };
-    };
-
     const handleSignup = async () => {
         if (!name.trim()) {
             Alert.alert('Error', 'Please enter your name.');
@@ -53,8 +57,10 @@ const SignupScreen = ({ navigation }) => {
         }
 
         setIsLoading(true);
+        Keyboard.dismiss();
+
         try {
-            const { email, password } = generateCredentials(name);
+            const { email, password } = generatedCredentials;
 
             // 1. Create Auth User
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -70,8 +76,8 @@ const SignupScreen = ({ navigation }) => {
                 email: email,
                 role: role,
                 createdAt: new Date().toISOString(),
-                busId: null, // To be assigned
-                stopId: null // To be assigned
+                busId: null,
+                stopId: null
             });
 
             // Should automatically navigate via Auth Stack listener
@@ -89,100 +95,111 @@ const SignupScreen = ({ navigation }) => {
 
     return (
         <GlassBackground>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
-                    <View style={styles.header}>
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <Text style={styles.title}>Join R8</Text>
-                        <Text style={styles.subtitle}>Enter your name to begin.</Text>
-                    </View>
+                        <View style={styles.header}>
+                            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                                <Ionicons name="arrow-back" size={24} color="#fff" />
+                            </TouchableOpacity>
+                            <Text style={styles.title}>Join R8</Text>
+                            <Text style={styles.subtitle}>Enter your name to begin.</Text>
+                        </View>
 
-                    <GlassCard style={styles.card}>
-                        <View style={styles.form}>
-                            {/* Role Toggle */}
-                            <View style={styles.roleContainer}>
-                                <TouchableOpacity
-                                    style={[styles.roleOption, role === 'student' && styles.roleActive]}
-                                    onPress={() => setRole('student')}
-                                    activeOpacity={0.8}
-                                >
-                                    <View style={styles.roleIconContainer}>
-                                        <Ionicons name="school" size={20} color={role === 'student' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                        <GlassCard style={styles.card}>
+                            <View style={styles.form}>
+                                {/* Role Toggle */}
+                                <View style={styles.roleContainer}>
+                                    <TouchableOpacity
+                                        style={[styles.roleOption, role === 'student' && styles.roleActive]}
+                                        onPress={() => setRole('student')}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={styles.roleIconContainer}>
+                                            <Ionicons name="school" size={20} color={role === 'student' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                        </View>
+                                        <Text style={[styles.roleText, role === 'student' && styles.roleTextActive]}>Student</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.roleOption, role === 'driver' && styles.roleActive]}
+                                        onPress={() => setRole('driver')}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={styles.roleIconContainer}>
+                                            <Ionicons name="bus" size={20} color={role === 'driver' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                        </View>
+                                        <Text style={[styles.roleText, role === 'driver' && styles.roleTextActive]}>Driver</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Name Input */}
+                                <View style={styles.inputWrapper}>
+                                    <Text style={styles.label}>FULL NAME</Text>
+                                    <View style={styles.inputContainer}>
+                                        <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="e.g. Rahul Sharma"
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                            value={name}
+                                            onChangeText={setName}
+                                            autoCapitalize="words"
+                                            autoCorrect={false}
+                                            returnKeyType="done"
+                                            onSubmitEditing={handleSignup}
+                                        />
                                     </View>
-                                    <Text style={[styles.roleText, role === 'student' && styles.roleTextActive]}>Student</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.roleOption, role === 'driver' && styles.roleActive]}
-                                    onPress={() => setRole('driver')}
-                                    activeOpacity={0.8}
-                                >
-                                    <View style={styles.roleIconContainer}>
-                                        <Ionicons name="bus" size={20} color={role === 'driver' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                </View>
+
+                                {/* Auto-Gen Info */}
+                                {name.length > 0 && (
+                                    <View style={styles.autoGenInfo}>
+                                        <Ionicons name="sparkles" size={14} color={Colors.secondary} />
+                                        <Text style={styles.autoGenText}>
+                                            ID will be: <Text style={styles.highlight}>{generatedCredentials.email}</Text>
+                                        </Text>
                                     </View>
-                                    <Text style={[styles.roleText, role === 'driver' && styles.roleTextActive]}>Driver</Text>
+                                )}
+
+                                {/* Signup Button */}
+                                <TouchableOpacity
+                                    onPress={handleSignup}
+                                    disabled={isLoading}
+                                    activeOpacity={0.9}
+                                >
+                                    <LinearGradient
+                                        colors={[Colors.secondary, '#2ecc71']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                        style={styles.signupButton}
+                                    >
+                                        {isLoading ? (
+                                            <ActivityIndicator color="#fff" />
+                                        ) : (
+                                            <Text style={styles.signupButtonText}>Create Account</Text>
+                                        )}
+                                    </LinearGradient>
                                 </TouchableOpacity>
                             </View>
+                        </GlassCard>
 
-                            {/* Name Input */}
-                            <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>FULL NAME</Text>
-                                <View style={styles.inputContainer}>
-                                    <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="e.g. Rahul Sharma"
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
-                                        value={name}
-                                        onChangeText={setName}
-                                        autoCapitalize="words"
-                                        autoCorrect={false}
-                                    />
-                                </View>
-                            </View>
-
-                            {/* Auto-Gen Info */}
-                            {name.length > 0 && (
-                                <View style={styles.autoGenInfo}>
-                                    <Ionicons name="sparkles" size={14} color={Colors.secondary} />
-                                    <Text style={styles.autoGenText}>
-                                        ID will be: <Text style={styles.highlight}>{generateCredentials(name).email}</Text>
-                                    </Text>
-                                </View>
-                            )}
-
-                            {/* Signup Button */}
-                            <TouchableOpacity
-                                onPress={handleSignup}
-                                disabled={isLoading}
-                                activeOpacity={0.9}
-                            >
-                                <LinearGradient
-                                    colors={[Colors.secondary, '#2ecc71']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                    style={styles.signupButton}
-                                >
-                                    {isLoading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <Text style={styles.signupButtonText}>Create Account</Text>
-                                    )}
-                                </LinearGradient>
+                        <View style={styles.footer}>
+                            <Text style={styles.footerText}>Already have an ID? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                                <Text style={styles.linkText}>Sign In</Text>
                             </TouchableOpacity>
                         </View>
-                    </GlassCard>
-
-                    <View style={styles.footer}>
-                        <Text style={styles.footerText}>Already have an ID? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                            <Text style={styles.linkText}>Sign In</Text>
-                        </TouchableOpacity>
-                    </View>
-                </Animated.View>
-            </ScrollView>
+                    </Animated.View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </GlassBackground>
     );
 };
@@ -190,6 +207,7 @@ const SignupScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
+        justifyContent: 'center',
     },
     container: {
         flex: 1,
@@ -212,7 +230,7 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 36,
-        fontWeight: '800', // Ultrathink bold
+        fontWeight: '800',
         color: '#fff',
         marginBottom: 8,
         letterSpacing: 0.5,
@@ -254,9 +272,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
     },
-    roleIconContainer: {
-        // width: 20,
-    },
+    roleIconContainer: {},
     roleText: {
         color: 'rgba(255,255,255,0.5)',
         fontSize: 14,
