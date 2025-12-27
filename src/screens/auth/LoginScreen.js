@@ -1,97 +1,221 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated, Easing, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { seedUsers } from '../../utils/userSeeder';
 
 const LoginScreen = ({ navigation }) => {
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [isAutoMode, setIsAutoMode] = useState(true);
+    const [rememberMe, setRememberMe] = useState(true);
+
+    // Seeding State
+    const [isSeeding, setIsSeeding] = useState(false);
+    const [seedStatus, setSeedStatus] = useState('');
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.cubic),
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.cubic),
+            }),
+        ]).start();
+    }, []);
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            Alert.alert('Error', 'Please enter both email and password.');
+        if (!identifier.trim()) {
+            Alert.alert('Error', 'Please enter your Name or ID.');
             return;
         }
 
         setIsLoading(true);
+        Keyboard.dismiss();
+
         try {
-            await signInWithEmailAndPassword(auth, email, password);
-            // Navigation will be handled by the AuthNavigator listening to auth state
+            let emailToUse = identifier.trim();
+            let passwordToUse = password;
+
+            if (!emailToUse.includes('@')) {
+                const cleanName = emailToUse.replace(/\s+/g, '').toLowerCase();
+                emailToUse = `${cleanName}@r8.bus`;
+                passwordToUse = emailToUse;
+            } else {
+                if (!password) {
+                    throw new Error('Please enter your password.');
+                }
+            }
+
+            console.log('Attempting login with:', emailToUse);
+            await signInWithEmailAndPassword(auth, emailToUse, passwordToUse);
+            // Navigation handled by auth listener
         } catch (error) {
             console.error('Login error:', error);
-            Alert.alert('Login Failed', error.message);
+            let msg = error.message;
+            if (error.code === 'auth/invalid-email') msg = "Invalid ID format.";
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') msg = "ID not found. If you don't have one, please Join R8 first.";
+            Alert.alert('Login Failed', msg);
         } finally {
             setIsLoading(false);
         }
     };
 
+    const handleSeeding = async () => {
+        Alert.alert(
+            "Admin Action",
+            "This will create accounts for all 22 preset users. existing users may error out (safe to ignore). Continue?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Start Seeding",
+                    onPress: async () => {
+                        setIsSeeding(true);
+                        setSeedStatus('Starting...');
+                        const result = await seedUsers((msg) => setSeedStatus(msg));
+                        setIsSeeding(false);
+                        setSeedStatus('');
+                        Alert.alert("Seeding Complete", `Success: ${result.successCount}\nFailed/Exist: ${result.failCount}`);
+                    }
+                }
+            ]
+        );
+    };
+
+    useEffect(() => {
+        if (identifier.includes('@')) {
+            setIsAutoMode(false);
+        } else {
+            setIsAutoMode(true);
+        }
+    }, [identifier]);
+
     return (
         <GlassBackground>
             <View style={styles.container}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>Welcome Back</Text>
-                    <Text style={styles.subtitle}>Sign in to access your bus pass</Text>
-                </View>
+                <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
-                <GlassCard>
-                    <View style={styles.form}>
-                        {/* Email Input */}
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.icon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Email Address"
-                                placeholderTextColor={Colors.textMuted}
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
-                        </View>
+                    <View style={styles.header}>
+                        <Text style={styles.title}>Welcome Back</Text>
+                        <Text style={styles.subtitle}>Enter your Name to access your pass.</Text>
+                        {/* Hidden/Subtle trigger logic can be complex, using visible button for clarity as requested */}
+                    </View>
 
-                        {/* Password Input */}
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.icon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Password"
-                                placeholderTextColor={Colors.textMuted}
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry={!showPassword}
-                            />
-                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
+                    <GlassCard style={styles.card}>
+                        <View style={styles.form}>
 
-                        {/* Login Button */}
-                        <TouchableOpacity
-                            style={styles.loginButton}
-                            onPress={handleLogin}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <Text style={styles.loginButtonText}>Sign In</Text>
+                            {/* Identifier Input */}
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>FULL NAME / ID</Text>
+                                <View style={styles.inputContainer}>
+                                    <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. Rahul Sharma"
+                                        placeholderTextColor="rgba(255,255,255,0.3)"
+                                        value={identifier}
+                                        onChangeText={setIdentifier}
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Password Section */}
+                            {!isAutoMode && (
+                                <Animated.View style={styles.inputWrapper}>
+                                    <Text style={styles.label}>PASSWORD</Text>
+                                    <View style={styles.inputContainer}>
+                                        <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Enter Password"
+                                            placeholderTextColor="rgba(255,255,255,0.3)"
+                                            value={password}
+                                            onChangeText={setPassword}
+                                            secureTextEntry={!showPassword}
+                                        />
+                                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                            <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.6)" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </Animated.View>
                             )}
+
+                            {/* Remember Me Checkbox */}
+                            <TouchableOpacity
+                                style={styles.rememberRow}
+                                onPress={() => setRememberMe(!rememberMe)}
+                                activeOpacity={0.8}
+                            >
+                                <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                                    {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+                                </View>
+                                <Text style={styles.rememberText}>Remember me</Text>
+                            </TouchableOpacity>
+
+                            {isSeeding && (
+                                <View style={styles.seedingContainer}>
+                                    <ActivityIndicator size="small" color={Colors.secondary} />
+                                    <Text style={styles.seedingText}>{seedStatus}</Text>
+                                </View>
+                            )}
+
+                            {/* Login Button */}
+                            <TouchableOpacity
+                                onPress={handleLogin}
+                                disabled={isLoading || isSeeding}
+                                activeOpacity={0.9}
+                            >
+                                <LinearGradient
+                                    colors={[Colors.primary, '#4a90e2']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.loginButton}
+                                >
+                                    {isLoading ? (
+                                        <ActivityIndicator color="#fff" />
+                                    ) : (
+                                        <Text style={styles.loginButtonText}>
+                                            {isAutoMode ? "Enter R8" : "Sign In"}
+                                        </Text>
+                                    )}
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            {/* Manual Seed Button */}
+                            <TouchableOpacity onPress={handleSeeding} style={styles.seedLink} >
+                                <Text style={styles.seedLinkText}>Admin: Seed Database</Text>
+                            </TouchableOpacity>
+
+                        </View>
+                    </GlassCard>
+
+                    <View style={styles.footer}>
+                        <Text style={styles.footerText}>New here? </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                            <Text style={styles.linkText}>Create ID</Text>
                         </TouchableOpacity>
                     </View>
-                </GlassCard>
-
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>Don't have an account? </Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                        <Text style={styles.linkText}>Sign Up</Text>
-                    </TouchableOpacity>
-                </View>
+                </Animated.View>
             </View>
         </GlassBackground>
     );
@@ -103,30 +227,51 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: 24,
     },
+    content: {
+        width: '100%',
+    },
     header: {
         marginBottom: 40,
     },
     title: {
-        fontSize: 32,
-        fontWeight: '700',
-        color: Colors.text,
+        fontSize: 36,
+        fontWeight: '800',
+        color: '#fff',
         marginBottom: 8,
+        letterSpacing: 0.5,
     },
     subtitle: {
         fontSize: 16,
-        color: Colors.textSecondary,
+        color: 'rgba(255,255,255,0.7)',
+        fontWeight: '400',
+    },
+    card: {
+        padding: 24,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
     },
     form: {
         gap: 20,
         paddingVertical: 10,
     },
+    inputWrapper: {
+        gap: 8,
+    },
+    label: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.5)',
+        letterSpacing: 1,
+        marginLeft: 4,
+    },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: 'rgba(0,0,0,0.2)',
         borderRadius: 16,
         paddingHorizontal: 16,
-        height: 56,
+        height: 60,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
@@ -135,40 +280,85 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        color: Colors.text,
-        fontSize: 16,
+        color: '#fff',
+        fontSize: 17,
+        fontWeight: '500',
+    },
+    rememberRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginLeft: 4,
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxActive: {
+        backgroundColor: Colors.secondary,
+        borderColor: Colors.secondary,
+    },
+    rememberText: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    seedingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        justifyContent: 'center',
+    },
+    seedingText: {
+        color: Colors.secondary,
+        fontSize: 12,
     },
     loginButton: {
-        backgroundColor: Colors.primary,
-        height: 56,
-        borderRadius: 16,
+        height: 60,
+        borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 10,
         shadowColor: Colors.primary,
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.4,
         shadowRadius: 16,
-        elevation: 8,
+        elevation: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     loginButtonText: {
         color: '#fff',
         fontSize: 18,
-        fontWeight: '600',
+        fontWeight: '700',
+        letterSpacing: 0.5,
     },
     footer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginTop: 24,
+        marginTop: 30,
     },
     footerText: {
-        color: Colors.textSecondary,
+        color: 'rgba(255,255,255,0.6)',
         fontSize: 14,
     },
     linkText: {
-        color: Colors.primary,
+        color: Colors.secondary,
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
+    },
+    seedLink: {
+        alignSelf: 'center',
+        marginTop: 10,
+    },
+    seedLinkText: {
+        color: 'rgba(255,255,255,0.2)',
+        fontSize: 10,
     }
 });
 

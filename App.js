@@ -40,6 +40,7 @@ import GlassCard from './components/GlassCard';
 // New Screens
 import StudentDashboard from './src/screens/student/StudentDashboard';
 import DriverDashboard from './src/screens/driver/DriverDashboard';
+import ChangePasswordScreen from './src/screens/auth/ChangePasswordScreen';
 
 // Utils & Constants
 import { loadSavedCards, addCardToStorage } from './utils/storage';
@@ -53,6 +54,7 @@ export default function App() {
   // Auth State
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null); // 'student' | 'driver'
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false); // New State
   const [initializing, setInitializing] = useState(true);
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -81,20 +83,29 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        // Fetch role from Firestore
+        // Fetch role and password status from Firestore
         try {
+          // Subscribe to user doc for real-time updates (like password change flag)
+          // Ideally snapshot, but simple get is fine for auth init.
+          // Let's use getDoc for now.
           const userDoc = await getDoc(doc(db, 'users', u.uid));
+
           if (userDoc.exists()) {
-            setRole(userDoc.data().role || 'student');
+            const data = userDoc.data();
+            setRole(data.role || 'student');
+            setRequiresPasswordChange(data.requiresPasswordChange === true);
           } else {
-            setRole('student'); // Default if doc missing
+            setRole('student');
+            setRequiresPasswordChange(false);
           }
         } catch (error) {
-          console.error("Error fetching role:", error);
+          console.error("Error fetching user data:", error);
           setRole('student');
+          setRequiresPasswordChange(false);
         }
       } else {
         setRole(null);
+        setRequiresPasswordChange(false);
       }
       setUser(u);
       if (initializing) setInitializing(false);
@@ -461,6 +472,16 @@ export default function App() {
       <NavigationContainer>
         <AuthNavigator />
       </NavigationContainer>
+    );
+  }
+
+  // Force Password Change
+  if (requiresPasswordChange) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <ChangePasswordScreen />
+      </SafeAreaView>
     );
   }
 
