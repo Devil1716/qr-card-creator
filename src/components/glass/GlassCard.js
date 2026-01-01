@@ -8,7 +8,7 @@ const GlassCard = ({
     children,
     style,
     onPress,
-    intensity = 20,
+    intensity = 40, // Deeper blur for One UI look
     width = '100%',
     header,
     footer
@@ -79,29 +79,29 @@ const GlassCard = ({
 
 const styles = StyleSheet.create({
     container: {
-        marginVertical: 8,
-        borderRadius: 24,
+        marginVertical: 10,
+        borderRadius: 28, // More rounded (Harmony OS style)
         shadowColor: Colors.glass.shadow,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.4,
+        shadowRadius: 24,
+        elevation: 12,
     },
     borderGradient: {
-        borderRadius: 24,
-        padding: 1, // 1px border width
+        borderRadius: 28,
+        padding: 0.8, // Ultra-thin border
     },
     innerContainer: {
-        borderRadius: 23, // 1px less than parent
+        borderRadius: 27.2,
         overflow: 'hidden',
         backgroundColor: Colors.glass.background,
     },
     blur: {
         width: '100%',
-        padding: 20,
+        padding: 24, // More breathing room
     },
     androidBlur: {
-        backgroundColor: 'rgba(30, 30, 40, 0.85)',
+        backgroundColor: 'rgba(20, 20, 25, 0.92)', // Slightly more opaque on Android for readability
     },
     content: {
         // Content layout

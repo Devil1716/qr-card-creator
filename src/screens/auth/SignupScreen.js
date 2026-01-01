@@ -8,13 +8,19 @@ import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
+import routePrediction from '../../features/location/services/RoutePrediction'; // Import route service
 
 const { width } = Dimensions.get('window');
 
 const SignupScreen = ({ navigation }) => {
     const [name, setName] = useState('');
-    const [role, setRole] = useState('student'); // 'student' | 'driver'
+    const [role] = useState('student'); // Default to student, driver creation removed
+    const [selectedStop, setSelectedStop] = useState(null); // { id, name }
+    const [showStopModal, setShowStopModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Get stops for selection
+    const stops = useMemo(() => routePrediction.getStops(), []);
 
     // Animations - run only once
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -26,7 +32,7 @@ const SignupScreen = ({ navigation }) => {
         const cleanName = name.trim().replace(/\s+/g, '').toLowerCase();
         const base = cleanName.length > 0 ? cleanName : 'user';
         const email = `${base}@r8.bus`;
-        const password = email;
+        const password = email; // Initial password is the email itself
         return { email, password };
     }, [name]);
 
@@ -76,8 +82,11 @@ const SignupScreen = ({ navigation }) => {
                 email: email,
                 role: role,
                 createdAt: new Date().toISOString(),
-                busId: null,
-                stopId: null
+                createdAt: new Date().toISOString(),
+                busId: role === 'student' ? 'KA-01-F-1234' : null, // Auto-assign to default bus for now
+                stopId: selectedStop?.id || null,
+                stopName: selectedStop?.name || null,
+                requiresPasswordChange: true // Force password change on first login
             });
 
             // Should automatically navigate via Auth Stack listener
@@ -116,27 +125,22 @@ const SignupScreen = ({ navigation }) => {
 
                         <GlassCard style={styles.card}>
                             <View style={styles.form}>
-                                {/* Role Toggle */}
-                                <View style={styles.roleContainer}>
+
+                                {/* Stop Selection (Always visible for students) */}
+                                <View style={styles.inputWrapper}>
+                                    <Text style={styles.label}>YOUR STOP</Text>
                                     <TouchableOpacity
-                                        style={[styles.roleOption, role === 'student' && styles.roleActive]}
-                                        onPress={() => setRole('student')}
+                                        style={styles.dropdownButton}
+                                        onPress={() => setShowStopModal(true)}
                                         activeOpacity={0.8}
                                     >
-                                        <View style={styles.roleIconContainer}>
-                                            <Ionicons name="school" size={20} color={role === 'student' ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Ionicons name="location" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                            <Text style={[styles.inputText, !selectedStop && styles.placeholderText]}>
+                                                {selectedStop ? selectedStop.name : 'Select your pickup stop'}
+                                            </Text>
                                         </View>
-                                        <Text style={[styles.roleText, role === 'student' && styles.roleTextActive]}>Student</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.roleOption, role === 'driver' && styles.roleActive]}
-                                        onPress={() => setRole('driver')}
-                                        activeOpacity={0.8}
-                                    >
-                                        <View style={styles.roleIconContainer}>
-                                            <Ionicons name="bus" size={20} color={role === 'driver' ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                                        </View>
-                                        <Text style={[styles.roleText, role === 'driver' && styles.roleTextActive]}>Driver</Text>
+                                        <Ionicons name="chevron-down" size={20} color="rgba(255,255,255,0.4)" />
                                     </TouchableOpacity>
                                 </View>
 
@@ -200,6 +204,47 @@ const SignupScreen = ({ navigation }) => {
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Stop Selection Modal */}
+            {showStopModal && (
+                <View style={styles.modalOverlay}>
+                    <GlassCard style={styles.modalContent} intensity={40}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Select Your Stop</Text>
+                            <TouchableOpacity onPress={() => setShowStopModal(false)} style={styles.closeButton}>
+                                <Ionicons name="close" size={24} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.stopList} showsVerticalScrollIndicator={false}>
+                            {stops.map((stop) => (
+                                <TouchableOpacity
+                                    key={stop.id}
+                                    style={[
+                                        styles.stopItem,
+                                        selectedStop?.id === stop.id && styles.stopItemActive
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedStop(stop);
+                                        setShowStopModal(false);
+                                    }}
+                                >
+                                    <View style={styles.stopInfo}>
+                                        <Ionicons
+                                            name={selectedStop?.id === stop.id ? "radio-button-on" : "radio-button-off"}
+                                            size={20}
+                                            color={selectedStop?.id === stop.id ? Colors.secondary : "rgba(255,255,255,0.4)"}
+                                        />
+                                        <Text style={[
+                                            styles.stopName,
+                                            selectedStop?.id === stop.id && styles.stopNameActive
+                                        ]}>{stop.name}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </GlassCard>
+                </View>
+            )}
         </GlassBackground>
     );
 };
@@ -362,6 +407,85 @@ const styles = StyleSheet.create({
     linkText: {
         color: Colors.secondary,
         fontSize: 14,
+        fontWeight: '700',
+    },
+    dropdownButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 60,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    inputText: {
+        color: '#fff',
+        fontSize: 17,
+        fontWeight: '500',
+    },
+    placeholderText: {
+        color: 'rgba(255,255,255,0.3)',
+    },
+    modalOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 1000,
+    },
+    modalContent: {
+        maxHeight: '70%',
+        padding: 0,
+        overflow: 'hidden',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    closeButton: {
+        padding: 4,
+    },
+    stopList: {
+        padding: 12,
+    },
+    stopItem: {
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 8,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+    stopItemActive: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)', // Green tint
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    stopInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    stopName: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '500',
+    },
+    stopNameActive: {
+        color: '#fff',
         fontWeight: '700',
     }
 });

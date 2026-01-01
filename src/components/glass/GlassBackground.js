@@ -34,28 +34,28 @@ const styles = StyleSheet.create({
         flex: 1,
         zIndex: 2,
     },
-    // Celestial Glow Effects
+    // Organic Harmony Glow Effects
     glowTop: {
         position: 'absolute',
-        top: -100,
+        top: -150,
         left: -100,
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        backgroundColor: Colors.primary,
-        opacity: 0.15,
-        transform: [{ scale: 1.5 }],
+        width: 400,
+        height: 400,
+        borderRadius: 200,
+        backgroundColor: Colors.primary, // Electric Violet
+        opacity: 0.12,
+        transform: [{ scaleX: 1.5 }, { scaleY: 1.2 }],
     },
     glowBottom: {
         position: 'absolute',
-        bottom: -100,
-        right: -100,
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        backgroundColor: Colors.secondary,
-        opacity: 0.1,
-        transform: [{ scale: 1.5 }],
+        bottom: -150,
+        right: -80,
+        width: 350,
+        height: 350,
+        borderRadius: 175,
+        backgroundColor: Colors.accent, // Amber
+        opacity: 0.08,
+        transform: [{ scale: 1.4 }],
     },
 });
 

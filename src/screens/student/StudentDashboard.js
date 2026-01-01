@@ -1,19 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import SharedGroupPreferences from 'react-native-shared-group-preferences';
 import { doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
+import FluidButton from '../../components/buttons/FluidButton';
 import { Colors } from '../../constants/colors';
+import { BusMapView, useBusLocation } from '../../features/location';
+import ChangePasswordModal from '../../screens/auth/ChangePasswordModal';
 
-const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
+const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigation }) => {
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [morningOptIn, setMorningOptIn] = useState(false);
     const [eveningOptIn, setEveningOptIn] = useState(false);
+    const [showMap, setShowMap] = useState(false);
+
+    // Hybrid bus location: live when available, estimated when offline
+    const {
+        location: busLocation,
+        status: busStatus,
+        isLive,
+        nextStop,
+        eta,
+        isOperating,
+        routePath
+    } = useBusLocation();
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const APP_GROUP = 'WidgetPrefs';
+
+    const updateWidget = async (morning, evening) => {
+        if (Platform.OS !== 'android') return;
+        try {
+            const widgetData = { morning, evening };
+            await SharedGroupPreferences.setItem('optin_data', JSON.stringify(widgetData), APP_GROUP);
+        } catch (error) {
+            console.log('Widget update error:', error);
+        }
+    };
 
     useEffect(() => {
         if (!auth.currentUser) return;
@@ -30,6 +57,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
                 const data = doc.data();
                 setMorningOptIn(data.morning || false);
                 setEveningOptIn(data.evening || false);
+                updateWidget(data.morning || false, data.evening || false);
             }
         });
 
@@ -53,6 +81,12 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
             };
 
             await setDoc(optInRef, updateData, { merge: true });
+
+            // Basic optimization: we update widget with new state immediately
+            // Note: In a real scenario, we should wait for Firestore, but for UI responsiveness we use local valid data
+            const newMorning = trip === 'morning' ? value : morningOptIn;
+            const newEvening = trip === 'evening' ? value : eveningOptIn;
+            updateWidget(newMorning, newEvening);
         } catch (error) {
             console.error('Error updating opt-in:', error);
             Alert.alert('Error', 'Failed to update boarding status.');
@@ -79,14 +113,87 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
                             <Text style={styles.greeting}>Hello,</Text>
                             <Text style={styles.userName}>{userData?.name || 'Student'}</Text>
                         </View>
-                        <TouchableOpacity onPress={onSignOut} style={styles.signOutBtn}>
-                            <Ionicons name="log-out-outline" size={24} color={Colors.error} />
-                        </TouchableOpacity>
+                        <FluidButton
+                            icon="log-out-outline"
+                            onPress={onSignOut}
+                            type="ghost"
+                            size="small"
+                        />
                     </View>
                     <Text style={styles.busInfo}>
                         {userData?.busId ? `Assigned to Bus: ${userData.busId}` : 'Not assigned to a bus yet'}
                     </Text>
                 </View>
+
+                {/* Bus Location Card */}
+                {userData?.busId && (
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={styles.mapHeader}
+                            onPress={() => setShowMap(!showMap)}
+                        >
+                            <View style={styles.mapHeaderLeft}>
+                                <Ionicons
+                                    name={isOperating ? "location" : "location-outline"}
+                                    size={20}
+                                    color={isOperating ? (isLive ? Colors.success : Colors.accent) : Colors.textSecondary}
+                                />
+                                <Text style={styles.sectionTitle}>
+                                    {isLive ? 'Bus is Live' : (isOperating ? 'Estimated Location' : 'Bus Location')}
+                                </Text>
+                                {isOperating && (
+                                    <View style={[styles.liveBadge, !isLive && styles.estimatedBadge]}>
+                                        <Text style={[styles.liveBadgeText, !isLive && styles.estimatedBadgeText]}>
+                                            {isLive ? 'LIVE' : 'ESTIMATED'}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                            <Ionicons
+                                name={showMap ? "chevron-up" : "chevron-down"}
+                                size={20}
+                                color={Colors.textSecondary}
+                            />
+                        </TouchableOpacity>
+
+                        {/* ETA Info Bar */}
+                        {isOperating && nextStop && (
+                            <View style={styles.etaBar}>
+                                <View style={styles.etaInfo}>
+                                    <Ionicons name="navigate-outline" size={14} color={Colors.primary} />
+                                    <Text style={styles.etaText}>Next: {nextStop.name}</Text>
+                                </View>
+                                {eta && (
+                                    <Text style={styles.etaTime}>ETA: {eta}</Text>
+                                )}
+                            </View>
+                        )}
+
+                        {showMap && (
+                            <GlassCard intensity={20} style={styles.mapCard}>
+                                {busLocation ? (
+                                    <BusMapView
+                                        isDriver={false}
+                                        otherBuses={[{
+                                            id: 'driver',
+                                            latitude: busLocation.latitude,
+                                            longitude: busLocation.longitude
+                                        }]}
+                                        busRoute={{ coordinates: routePath }}
+                                        style={styles.mapView}
+                                    />
+                                ) : (
+                                    <View style={styles.mapOffline}>
+                                        <Ionicons name="bus-outline" size={32} color={Colors.textSecondary} />
+                                        <Text style={styles.mapOfflineText}>
+                                            {isOperating ? 'Calculating route...' : 'Bus not operating now'}
+                                        </Text>
+                                    </View>
+                                )}
+                            </GlassCard>
+                        )}
+                    </View>
+                )}
 
                 {/* Daily Boarding Intent (Opt-In) */}
                 <View style={styles.section}>
@@ -137,7 +244,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
                     <TouchableOpacity style={styles.actionItem} onPress={onStartScanning}>
                         <GlassCard style={styles.actionCard} intensity={40}>
                             <View style={styles.actionContent}>
-                                <View style={[styles.iconCircle, { backgroundColor: 'rgba(0, 102, 204, 0.2)' }]}>
+                                <View style={[styles.iconCircle, { backgroundColor: 'rgba(124, 58, 237, 0.15)' }]}>
                                     <Ionicons name="scan-outline" size={32} color={Colors.primary} />
                                 </View>
                                 <Text style={styles.actionTitle}>Update Card</Text>
@@ -168,15 +275,29 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut }) => {
                             <Text style={styles.setupDesc}>
                                 Please scan the QR code located in your bus to link your account and generate your pass.
                             </Text>
-                            <TouchableOpacity style={styles.setupButton} onPress={onStartScanning}>
-                                <Text style={styles.setupButtonText}>Scan Bus QR Now</Text>
-                            </TouchableOpacity>
+                            <View style={{ marginTop: 24 }}>
+                                <FluidButton
+                                    title="Scan Bus QR Now"
+                                    onPress={onStartScanning}
+                                    type="primary"
+                                    size="large"
+                                    icon="scan"
+                                />
+                            </View>
                         </GlassCard>
                     </View>
                 )}
 
                 <View style={{ height: 100 }} />
             </ScrollView>
+            {/* Password Change Modal */}
+            <ChangePasswordModal
+                visible={userData?.requiresPasswordChange === true}
+                onSuccess={() => {
+                    // Update local state is handled by onSnapshot, so modal will close automatically
+                    // when Firestore updates.
+                }}
+            />
         </GlassBackground>
     );
 };
@@ -317,6 +438,77 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    mapHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    mapHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    liveBadge: {
+        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    liveBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: Colors.success,
+        letterSpacing: 0.5,
+    },
+    mapCard: {
+        padding: 0,
+        overflow: 'hidden',
+    },
+    mapView: {
+        height: 200,
+        borderRadius: 16,
+    },
+    mapOffline: {
+        height: 120,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    mapOfflineText: {
+        fontSize: 13,
+        color: Colors.textSecondary,
+    },
+    estimatedBadge: {
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    estimatedBadgeText: {
+        color: Colors.accent,
+    },
+    etaBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 10,
+        marginBottom: 12,
+    },
+    etaInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    etaText: {
+        fontSize: 13,
+        color: Colors.text,
+    },
+    etaTime: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: Colors.primary,
     },
 });
 

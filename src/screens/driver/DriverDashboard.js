@@ -1,19 +1,80 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, ActivityIndicator, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, ActivityIndicator, FlatList, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
+import { useLocationEngine, LocationMode } from '../../features/location';
+import RouteTimeline from './RouteTimeline';
+import ChangePasswordModal from '../../screens/auth/ChangePasswordModal';
 
-const DriverDashboard = ({ onSignOut }) => {
+const DriverDashboard = ({ onSignOut, navigation }) => {
     const [morningCount, setMorningCount] = useState(0);
     const [eveningCount, setEveningCount] = useState(0);
     const [passengers, setPassengers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isSharing, setIsSharing] = useState(false);
+    const [userData, setUserData] = useState(null);
 
     const todayStr = new Date().toISOString().split('T')[0];
+
+    // Location engine for broadcasting
+    const { location, accuracy, startTracking, stopTracking, isTracking } = useLocationEngine({
+        mode: isSharing ? LocationMode.ACTIVE : LocationMode.OFF,
+        enableSensorFusion: true
+    });
+
+    // Broadcast location to Firestore when tracking
+    useEffect(() => {
+        if (!isSharing || !location || !auth.currentUser) return;
+
+        const broadcastLocation = async () => {
+            try {
+                const busRef = doc(db, 'bus_locations', auth.currentUser.uid);
+                await updateDoc(busRef, {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    accuracy: accuracy,
+                    updatedAt: serverTimestamp(),
+                    driverId: auth.currentUser.uid,
+                    isActive: true
+                }).catch(() => {
+                    // Document may not exist, create it
+                    import('firebase/firestore').then(({ setDoc }) => {
+                        setDoc(busRef, {
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            accuracy: accuracy,
+                            updatedAt: serverTimestamp(),
+                            driverId: auth.currentUser.uid,
+                            isActive: true
+                        });
+                    });
+                });
+            } catch (error) {
+                console.error('Error broadcasting location:', error);
+            }
+        };
+
+        broadcastLocation();
+    }, [location, isSharing, accuracy]);
+
+    // Toggle location sharing
+    const toggleSharing = useCallback((value) => {
+        setIsSharing(value);
+        if (value) {
+            startTracking();
+        } else {
+            stopTracking();
+            // Mark as inactive
+            if (auth.currentUser) {
+                const busRef = doc(db, 'bus_locations', auth.currentUser.uid);
+                updateDoc(busRef, { isActive: false }).catch(() => { });
+            }
+        }
+    }, [startTracking, stopTracking]);
 
     useEffect(() => {
         // Query today's opt-ins
@@ -37,7 +98,17 @@ const DriverDashboard = ({ onSignOut }) => {
             setLoading(false);
         });
 
-        return unsubscribe;
+
+
+        // Also listen to own user profile for password flag
+        const unsubUser = onSnapshot(doc(db, 'users', auth.currentUser.uid), (doc) => {
+            setUserData(doc.data());
+        });
+
+        return () => {
+            unsubscribe();
+            unsubUser();
+        };
     }, []);
 
     if (loading) {
@@ -60,8 +131,11 @@ const DriverDashboard = ({ onSignOut }) => {
                             <Text style={styles.greeting}>Driver</Text>
                             <Text style={styles.title}>Summary</Text>
                         </View>
-                        <TouchableOpacity onPress={onSignOut} style={styles.signOutBtn}>
-                            <Ionicons name="log-out-outline" size={24} color={Colors.error} />
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('Settings')}
+                            style={styles.settingsBtn}
+                        >
+                            <Ionicons name="settings-outline" size={24} color={Colors.text} />
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.dateText}>{new Date().toDateString()}</Text>
@@ -81,6 +155,42 @@ const DriverDashboard = ({ onSignOut }) => {
                         <Text style={styles.countLabel}>Evening</Text>
                     </GlassCard>
                 </View>
+
+                {/* Location Sharing Toggle */}
+                <GlassCard intensity={30} style={styles.locationCard}>
+                    <View style={styles.locationRow}>
+                        <View style={styles.locationInfo}>
+                            <Ionicons
+                                name={isSharing ? "location" : "location-outline"}
+                                size={24}
+                                color={isSharing ? Colors.success : Colors.textSecondary}
+                            />
+                            <View style={styles.locationText}>
+                                <Text style={styles.locationTitle}>Share Bus Location</Text>
+                                <Text style={styles.locationSubtext}>
+                                    {isSharing
+                                        ? `Broadcasting • ±${accuracy?.toFixed(0) || '--'}m`
+                                        : 'Students cannot see your bus'}
+                                </Text>
+                            </View>
+                        </View>
+                        <Switch
+                            value={isSharing}
+                            onValueChange={toggleSharing}
+                            trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.successDark || '#16A34A' }}
+                            thumbColor={isSharing ? Colors.success : Colors.textSecondary}
+                        />
+                    </View>
+                    {isSharing && (
+                        <View style={styles.liveIndicator}>
+                            <View style={styles.liveDot} />
+                            <Text style={styles.liveText}>LIVE</Text>
+                        </View>
+                    )}
+                </GlassCard>
+
+                {/* Route Timeline (Driver Only) */}
+                <RouteTimeline />
 
                 <View style={styles.listSection}>
                     <Text style={styles.sectionTitle}>Boarding List</Text>
@@ -115,6 +225,11 @@ const DriverDashboard = ({ onSignOut }) => {
                     )}
                 </View>
             </View>
+            {/* Password Change Modal */}
+            <ChangePasswordModal
+                visible={userData?.requiresPasswordChange === true}
+                onSuccess={() => { }}
+            />
         </GlassBackground>
     );
 };
@@ -144,11 +259,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         letterSpacing: -1,
     },
-    signOutBtn: {
+    settingsBtn: {
         width: 44,
         height: 44,
         borderRadius: 12,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -220,6 +335,54 @@ const styles = StyleSheet.create({
     emptyText: {
         color: Colors.textSecondary,
         textAlign: 'center',
+    },
+    locationCard: {
+        marginBottom: 24,
+        padding: 16,
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    locationInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    locationText: {
+        flex: 1,
+    },
+    locationTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    locationSubtext: {
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginTop: 2,
+    },
+    liveIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.08)',
+        gap: 6,
+    },
+    liveDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Colors.success,
+    },
+    liveText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: Colors.success,
+        letterSpacing: 1,
     }
 });
 

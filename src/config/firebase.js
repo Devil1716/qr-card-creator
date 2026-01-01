@@ -1,7 +1,16 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence, getAuth, inMemoryPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Conditionally import AsyncStorage for React Native environment
+let AsyncStorage;
+if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
+    try {
+        AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    } catch (e) {
+        console.warn('AsyncStorage not found');
+    }
+}
 
 const firebaseConfig = {
     apiKey: "AIzaSyAU8P1iEQbetZtx3lleqmyKMCXmJTeSMDk",
@@ -18,9 +27,14 @@ let auth;
 
 if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
-    auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-    });
+    if (AsyncStorage) {
+        auth = initializeAuth(app, {
+            persistence: getReactNativePersistence(AsyncStorage)
+        });
+    } else {
+        // Fallback for Node.js scripts or web without AsyncStorage
+        auth = getAuth(app);
+    }
 } else {
     app = getApp();
     auth = getAuth(app);

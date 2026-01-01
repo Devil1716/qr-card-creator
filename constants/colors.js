@@ -1,56 +1,50 @@
 export const Colors = {
-  // Core Brand
-  primary: '#0066CC', // R8 Blue
-  primaryDark: '#004C99',
-  primaryLight: '#4D94FF',
-  secondary: '#66CC00', // R8 Green
-  accent: '#FF8C00', // Swoosh Orange
+  // Brand Identity: "Organic Harmony"
+  // Inspired by: Deep Space & Bioluminescence
+  primary: '#7C3AED', // Electric Violet (Vibrant, distinct from generic blue)
+  primaryDark: '#5B21B6',
+  primaryLight: '#A78BFA',
 
-  // Signals
-  success: '#10b981',
-  successLight: '#34d399',
-  warning: '#f59e0b',
-  error: '#ef4444',
+  secondary: '#10B981', // Emerald (Success/Nature)
+  accent: '#F59E0B', // Amber (Warmth/Warning)
 
-  // Base Backgrounds (Celestial Palette)
-  background: '#050508', // Deepest space black
-  backgroundSecondary: 'rgba(255, 255, 255, 0.05)',
-  backgroundTertiary: 'rgba(255, 255, 255, 0.08)',
-
-  // One UI Glass System
-  glass: {
-    background: 'rgba(20, 20, 20, 0.6)', // Dark mode frosted base
-    backgroundLight: 'rgba(255, 255, 255, 0.15)', // Lighter glass
-    border: 'rgba(255, 255, 255, 0.1)', // Subtle border
-    borderHighlight: 'rgba(255, 255, 255, 0.25)', // Top/Left highlight
-    shadow: 'rgba(0, 0, 0, 0.5)',
-  },
-
-  // Gradients
+  // Harmony OS Gradients (Start/End)
   gradients: {
-    primary: ['#0066CC', '#004C99'],
-    background: ['#0f172a', '#050508'], // Deep celestial gradient
-    glassBorder: ['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.05)'], // Top-left to bottom-right
+    primary: ['#7C3AED', '#4F46E5'], // Violet -> Indigo
+    success: ['#10B981', '#059669'],
+    danger: ['#EF4444', '#DC2626'],
+    glassBorder: ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.02)'], // Ultra-subtle border
+    background: ['#000000', '#111116'], // Pure OLED -> Deep Zinc
+    card: ['rgba(30, 30, 40, 0.7)', 'rgba(20, 20, 30, 0.4)'],
   },
 
-  // Typography
-  text: '#ffffff',
-  textSecondary: '#94a3b8', // Slate 400
-  textMuted: '#64748b', // Slate 500
-  textInverse: '#0f172a',
+  // Signals (Softer, less alarming)
+  success: '#10B981',
+  warning: '#FBBF24',
+  error: '#F87171',
+  info: '#3B82F6',
 
-  // Legacy/Util
-  border: 'rgba(255, 255, 255, 0.1)',
-  borderLight: 'rgba(255, 255, 255, 0.05)',
-  cardBackground: '#ffffff',
-  overlay: 'rgba(5, 5, 10, 0.8)',
-  overlayMedium: 'rgba(0, 0, 0, 0.5)',
-  overlayLight: 'rgba(255, 255, 255, 0.1)',
-  overlayDark: 'rgba(0, 0, 0, 0.8)',
+  // Base Backgrounds
+  background: '#000000', // Pure Black for OLED
+  backgroundSecondary: '#18181B', // Zinc 900
 
-  // Badges
-  badgeBackground: 'rgba(0, 102, 204, 0.15)',
-  dataBackground: 'rgba(255, 255, 255, 0.03)',
-  divider: 'rgba(255, 255, 255, 0.08)',
+  // Glass System (One UI 6.0 Style)
+  glass: {
+    background: 'rgba(30, 30, 40, 0.4)', // More transparency
+    backgroundLight: 'rgba(255, 255, 255, 0.08)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    borderHighlight: 'rgba(255, 255, 255, 0.15)',
+    shadow: 'rgba(0, 0, 0, 0.6)',
+    blurIntensity: 30,
+  },
+
+  // Typography (Inter/San Francisco style)
+  text: '#FAFAFA', // Almost white
+  textSecondary: '#A1A1AA', // Zinc 400
+  textMuted: '#52525B', // Zinc 600
+  textInverse: '#000000',
+
+  // Utilities
+  divider: 'rgba(255, 255, 255, 0.06)',
+  overlay: 'rgba(0, 0, 0, 0.7)',
 };
-
