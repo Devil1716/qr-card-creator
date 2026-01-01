@@ -7,7 +7,6 @@ import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { seedUsers } from '../../utils/userSeeder';
 import FluidButton from '../../components/buttons/FluidButton';
 

@@ -8,7 +8,6 @@ import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LinearGradient } from 'expo-linear-gradient';
 import routePrediction from '../../features/location/services/RoutePrediction'; // Import route service
 import FluidButton from '../../components/buttons/FluidButton';
 
