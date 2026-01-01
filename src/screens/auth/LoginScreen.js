@@ -7,7 +7,9 @@ import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { seedUsers } from '../../utils/userSeeder';
+import FluidButton from '../../components/buttons/FluidButton';
 
 const LoginScreen = ({ navigation }) => {
     const [identifier, setIdentifier] = useState('');
@@ -192,26 +194,16 @@ const LoginScreen = ({ navigation }) => {
                                 )}
 
                                 {/* Login Button */}
-                                <TouchableOpacity
-                                    onPress={handleLogin}
-                                    disabled={isLoading || isSeeding}
-                                    activeOpacity={0.9}
-                                >
-                                    <LinearGradient
-                                        colors={[Colors.primary, '#4a90e2']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.loginButton}
-                                    >
-                                        {isLoading ? (
-                                            <ActivityIndicator color="#fff" />
-                                        ) : (
-                                            <Text style={styles.loginButtonText}>
-                                                {isAutoMode ? "Enter R8" : "Sign In"}
-                                            </Text>
-                                        )}
-                                    </LinearGradient>
-                                </TouchableOpacity>
+                                <View style={{ marginTop: 10 }}>
+                                    <FluidButton
+                                        title={isAutoMode ? "Enter R8" : "Sign In"}
+                                        onPress={handleLogin}
+                                        isLoading={isLoading || isSeeding}
+                                        type="primary"
+                                        size="large"
+                                        icon="arrow-forward"
+                                    />
+                                </View>
 
                                 {/* Manual Seed Button */}
                                 <TouchableOpacity onPress={handleSeeding} style={styles.seedLink} >

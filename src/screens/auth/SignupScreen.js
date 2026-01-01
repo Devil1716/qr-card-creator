@@ -8,7 +8,9 @@ import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import { Colors } from '../../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import routePrediction from '../../features/location/services/RoutePrediction'; // Import route service
+import FluidButton from '../../components/buttons/FluidButton';
 
 const { width } = Dimensions.get('window');
 
@@ -174,24 +176,16 @@ const SignupScreen = ({ navigation }) => {
                                 )}
 
                                 {/* Signup Button */}
-                                <TouchableOpacity
-                                    onPress={handleSignup}
-                                    disabled={isLoading}
-                                    activeOpacity={0.9}
-                                >
-                                    <LinearGradient
-                                        colors={[Colors.secondary, '#2ecc71']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 1 }}
-                                        style={styles.signupButton}
-                                    >
-                                        {isLoading ? (
-                                            <ActivityIndicator color="#fff" />
-                                        ) : (
-                                            <Text style={styles.signupButtonText}>Create Account</Text>
-                                        )}
-                                    </LinearGradient>
-                                </TouchableOpacity>
+                                <View style={{ marginTop: 10 }}>
+                                    <FluidButton
+                                        title="Create Account"
+                                        onPress={handleSignup}
+                                        isLoading={isLoading}
+                                        type="secondary" // Green theme
+                                        size="large"
+                                        icon="person-add"
+                                    />
+                                </View>
                             </View>
                         </GlassCard>
 
