@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
 import { doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
@@ -28,6 +29,32 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
         isOperating,
         routePath
     } = useBusLocation();
+
+    // Pulse Animation for Live Badge
+    const pulseAnim = React.useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        if (isLive) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, {
+                        toValue: 0.6,
+                        duration: 800,
+                        useNativeDriver: true,
+                        easing: Easing.inOut(Easing.ease)
+                    }),
+                    Animated.timing(pulseAnim, {
+                        toValue: 1,
+                        duration: 800,
+                        useNativeDriver: true,
+                        easing: Easing.inOut(Easing.ease)
+                    })
+                ])
+            ).start();
+        } else {
+            pulseAnim.setValue(1); // Reset
+        }
+    }, [isLive]);
 
     const todayStr = new Date().toISOString().split('T')[0];
     const APP_GROUP = 'WidgetPrefs';
@@ -68,6 +95,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
     }, []);
 
     const toggleOptIn = async (trip, value) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         try {
             const optInRef = doc(db, 'optins', `${auth.currentUser.uid}_${todayStr}`);
             const updateData = {
@@ -142,11 +170,11 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
                                     {isLive ? 'Bus is Live' : (isOperating ? 'Estimated Location' : 'Bus Location')}
                                 </Text>
                                 {isOperating && (
-                                    <View style={[styles.liveBadge, !isLive && styles.estimatedBadge]}>
+                                    <Animated.View style={[styles.liveBadge, !isLive && styles.estimatedBadge, isLive && { opacity: pulseAnim }]}>
                                         <Text style={[styles.liveBadgeText, !isLive && styles.estimatedBadgeText]}>
                                             {isLive ? 'LIVE' : 'ESTIMATED'}
                                         </Text>
-                                    </View>
+                                    </Animated.View>
                                 )}
                             </View>
                             <Ionicons
@@ -241,7 +269,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
 
                 {/* Main Actions */}
                 <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={styles.actionItem} onPress={onStartScanning}>
+                    <TouchableOpacity style={styles.actionItem} onPress={() => { Haptics.selectionAsync(); onStartScanning(); }}>
                         <GlassCard style={styles.actionCard} intensity={40}>
                             <View style={styles.actionContent}>
                                 <View style={[styles.iconCircle, { backgroundColor: 'rgba(124, 58, 237, 0.15)' }]}>
@@ -253,7 +281,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
                         </GlassCard>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionItem} onPress={onViewHistory}>
+                    <TouchableOpacity style={styles.actionItem} onPress={() => { Haptics.selectionAsync(); onViewHistory(); }}>
                         <GlassCard style={styles.actionCard} intensity={25}>
                             <View style={styles.actionContent}>
                                 <View style={[styles.iconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>

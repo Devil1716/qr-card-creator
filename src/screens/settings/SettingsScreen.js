@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { auth, db } from '../../config/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import GlassBackground from '../../components/glass/GlassBackground';
@@ -11,6 +12,7 @@ import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 const SettingsScreen = ({ navigation }) => {
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [hapticsEnabled, setHapticsEnabled] = useState(true);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [userData, setUserData] = useState(null);
 
@@ -30,7 +32,13 @@ const SettingsScreen = ({ navigation }) => {
 
     const toggleNotifications = async (value) => {
         setNotificationsEnabled(value);
+        if (hapticsEnabled) Haptics.selectionAsync();
         // Persist to local storage or Firestore
+    };
+
+    const toggleHaptics = (value) => {
+        setHapticsEnabled(value);
+        if (value) Haptics.selectionAsync(); // Feedback on regular enable
     };
 
     const handleSignOut = () => {
@@ -135,6 +143,13 @@ const SettingsScreen = ({ navigation }) => {
                         title="Notifications"
                         toggle={toggleNotifications}
                         value={notificationsEnabled}
+                    />
+                    <View style={styles.divider} />
+                    <SettingItem
+                        icon="finger-print-outline"
+                        title="Haptic Feedback"
+                        toggle={toggleHaptics}
+                        value={hapticsEnabled}
                     />
                 </GlassCard>
 
