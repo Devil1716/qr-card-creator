@@ -5,7 +5,6 @@ import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { CARD_DEFAULTS } from '../constants/storage';
-import ThreeDCard from './ThreeDCard';
 
 // Mock Baghirathi Logo Component using SVG
 const BaghirathiLogo = () => (
@@ -38,56 +37,54 @@ const QRCard = ({
 }) => {
   return (
     <View style={styles.wrapper} onLayout={onLayout}>
-      <ThreeDCard>
-        <ViewShot
-          ref={viewShotRef}
-          options={{
-            format: 'png',
-            quality: 1,
-            result: 'tmpfile',
-            snapshotContentContainer: false,
-          }}
-          collapsable={false}
-        >
-          <View style={styles.card}>
-            {/* Header: Logo */}
-            <View style={styles.header}>
-              <BaghirathiLogo />
-            </View>
-
-            {/* QR Code Section */}
-            <View style={styles.qrSection}>
-              <QRCode
-                value={qrData || 'No Data'}
-                size={180}
-                color="#1f2937" // Dark grey/black
-                backgroundColor="transparent"
-              />
-              <Text style={styles.uniqueIdText}>
-                NTbJVM
-              </Text>
-            </View>
-
-            {/* Name Input (Keeping usability but styling to fit) */}
-            <TextInput
-              style={styles.nameInput}
-              placeholder="YOUR NAME"
-              placeholderTextColor="#9ca3af" // Light grey
-              value={userName}
-              onChangeText={onNameChange}
-              maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
-              editable={!isLoading}
-              autoCapitalize="words"
-            />
-
-            {/* Footer Text */}
-            <View style={styles.footer}>
-              <Text style={styles.footerLine1}>RELIABLE | SECURE</Text>
-              <Text style={styles.footerLine2}>COMFORTABLE</Text>
-            </View>
+      <ViewShot
+        ref={viewShotRef}
+        options={{
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+          snapshotContentContainer: false,
+        }}
+        collapsable={false}
+      >
+        <View style={styles.card}>
+          {/* Header: Logo */}
+          <View style={styles.header}>
+            <BaghirathiLogo />
           </View>
-        </ViewShot>
-      </ThreeDCard>
+
+          {/* QR Code Section */}
+          <View style={styles.qrSection}>
+            <QRCode
+              value={qrData || 'No Data'}
+              size={180}
+              color="#1f2937" // Dark grey/black
+              backgroundColor="transparent"
+            />
+            <Text style={styles.uniqueIdText}>
+              NTbJVM
+            </Text>
+          </View>
+
+          {/* Name Input (Keeping usability but styling to fit) */}
+          <TextInput
+            style={styles.nameInput}
+            placeholder="YOUR NAME"
+            placeholderTextColor="#9ca3af" // Light grey
+            value={userName}
+            onChangeText={onNameChange}
+            maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
+            editable={!isLoading}
+            autoCapitalize="words"
+          />
+
+          {/* Footer Text */}
+          <View style={styles.footer}>
+            <Text style={styles.footerLine1}>RELIABLE | SECURE</Text>
+            <Text style={styles.footerLine2}>COMFORTABLE</Text>
+          </View>
+        </View>
+      </ViewShot>
     </View>
   );
 };
