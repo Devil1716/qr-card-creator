@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../../constants/colors';
 import GlassCard from '../../components/glass/GlassCard';
-import routePrediction from '../../location/services/RoutePrediction';
+import routePrediction from '../../features/location/services/RoutePrediction';
 
 const RouteTimeline = ({ currentProgress = 0, nextStopId }) => {
     // Get stops from the comprehensive route definition
