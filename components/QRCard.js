@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Animated, Platform } from 'react-native';
 import PropTypes from 'prop-types';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { DeviceMotion } from 'expo-sensors';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CARD_DEFAULTS } from '../constants/storage';
 
 // Mock Baghirathi Logo Component using SVG
@@ -35,56 +37,130 @@ const QRCard = ({
   isLoading = false,
   onLayout,
 }) => {
+  // 3D Animation Values
+  const rotateX = useRef(new Animated.Value(0)).current;
+  const rotateY = useRef(new Animated.Value(0)).current;
+  const glareOpacity = useRef(new Animated.Value(0)).current;
+  const glarePosition = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Start motion tracking
+    DeviceMotion.setUpdateInterval(50);
+    const subscription = DeviceMotion.addListener((data) => {
+      const { rotation } = data;
+      if (rotation) {
+        const pitch = Math.max(-0.4, Math.min(0.4, rotation.beta || 0));
+        const roll = Math.max(-0.4, Math.min(0.4, rotation.gamma || 0));
+
+        Animated.parallel([
+          Animated.spring(rotateX, {
+            toValue: pitch * 15,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 40
+          }),
+          Animated.spring(rotateY, {
+            toValue: roll * 15,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 40
+          }),
+          Animated.spring(glarePosition, {
+            toValue: roll * 200,
+            useNativeDriver: true,
+            friction: 8
+          }),
+          Animated.timing(glareOpacity, {
+            toValue: Math.abs(roll) + Math.abs(pitch) > 0.08 ? 0.35 : 0,
+            duration: 200,
+            useNativeDriver: true
+          })
+        ]).start();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const animatedStyle = {
+    transform: [
+      { perspective: 1000 },
+      { rotateX: rotateX.interpolate({ inputRange: [-15, 15], outputRange: ['15deg', '-15deg'] }) },
+      { rotateY: rotateY.interpolate({ inputRange: [-15, 15], outputRange: ['-15deg', '15deg'] }) }
+    ]
+  };
+
   return (
     <View style={styles.wrapper} onLayout={onLayout}>
-      <ViewShot
-        ref={viewShotRef}
-        options={{
-          format: 'png',
-          quality: 1,
-          result: 'tmpfile',
-          snapshotContentContainer: false,
-        }}
-        collapsable={false}
-      >
-        <View style={styles.card}>
-          {/* Header: Logo */}
-          <View style={styles.header}>
-            <BaghirathiLogo />
-          </View>
+      <Animated.View style={animatedStyle}>
+        <ViewShot
+          ref={viewShotRef}
+          options={{
+            format: 'png',
+            quality: 1,
+            result: 'tmpfile',
+            snapshotContentContainer: false,
+          }}
+          collapsable={false}
+        >
+          <View style={styles.card}>
+            {/* Glare Effect */}
+            <Animated.View
+              style={[
+                styles.glare,
+                {
+                  opacity: glareOpacity,
+                  transform: [{ translateX: glarePosition }, { rotate: '25deg' }]
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ flex: 1 }}
+              />
+            </Animated.View>
 
-          {/* QR Code Section */}
-          <View style={styles.qrSection}>
-            <QRCode
-              value={qrData || 'No Data'}
-              size={180}
-              color="#1f2937" // Dark grey/black
-              backgroundColor="transparent"
+            {/* Header: Logo */}
+            <View style={styles.header}>
+              <BaghirathiLogo />
+            </View>
+
+            {/* QR Code Section */}
+            <View style={styles.qrSection}>
+              <QRCode
+                value={qrData || 'No Data'}
+                size={180}
+                color="#1f2937"
+                backgroundColor="transparent"
+              />
+              <Text style={styles.uniqueIdText}>
+                NTbJVM
+              </Text>
+            </View>
+
+            {/* Name Input */}
+            <TextInput
+              style={styles.nameInput}
+              placeholder="YOUR NAME"
+              placeholderTextColor="#9ca3af"
+              value={userName}
+              onChangeText={onNameChange}
+              maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
+              editable={!isLoading}
+              autoCapitalize="words"
             />
-            <Text style={styles.uniqueIdText}>
-              NTbJVM
-            </Text>
-          </View>
 
-          {/* Name Input (Keeping usability but styling to fit) */}
-          <TextInput
-            style={styles.nameInput}
-            placeholder="YOUR NAME"
-            placeholderTextColor="#9ca3af" // Light grey
-            value={userName}
-            onChangeText={onNameChange}
-            maxLength={CARD_DEFAULTS.MAX_NAME_LENGTH}
-            editable={!isLoading}
-            autoCapitalize="words"
-          />
-
-          {/* Footer Text */}
-          <View style={styles.footer}>
-            <Text style={styles.footerLine1}>RELIABLE | SECURE</Text>
-            <Text style={styles.footerLine2}>COMFORTABLE</Text>
+            {/* Footer Text */}
+            <View style={styles.footer}>
+              <Text style={styles.footerLine1}>RELIABLE | SECURE</Text>
+              <Text style={styles.footerLine2}>COMFORTABLE</Text>
+            </View>
           </View>
-        </View>
-      </ViewShot>
+        </ViewShot>
+      </Animated.View>
     </View>
   );
 };
@@ -99,17 +175,24 @@ const styles = StyleSheet.create({
     width: 320,
     height: 500,
     borderRadius: 20,
-    backgroundColor: '#ffffff', // White
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 40,
     paddingHorizontal: 20,
-    // Shadow for depth
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 25,
+    elevation: 12,
+    overflow: 'hidden',
+  },
+  glare: {
+    position: 'absolute',
+    top: -150,
+    bottom: -150,
+    width: 120,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',
@@ -128,12 +211,12 @@ const styles = StyleSheet.create({
   logoTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#374151', // Dark grey/slate
+    color: '#374151',
     letterSpacing: -0.5,
   },
   logoTagline: {
     fontSize: 10,
-    color: '#22c55e', // Green
+    color: '#22c55e',
     fontWeight: '600',
     letterSpacing: 0.5,
     marginTop: 0,
@@ -147,9 +230,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 10,
     fontWeight: '700',
-    color: '#6b7280', // Grey
+    color: '#6b7280',
     letterSpacing: 1,
-    fontFamily: 'monospace' // Or system default monospace if available
+    fontFamily: 'monospace'
   },
   nameInput: {
     fontSize: 18,
@@ -169,14 +252,14 @@ const styles = StyleSheet.create({
   footerLine1: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151', // Dark slate
+    color: '#374151',
     letterSpacing: 1,
     marginBottom: 4,
   },
   footerLine2: {
     fontSize: 18,
     fontWeight: '400',
-    color: '#374151', // Dark slate
+    color: '#374151',
     letterSpacing: 1.5,
   },
 });
