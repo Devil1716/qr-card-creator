@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../../config/firebase';
-import GlassCard from '../../components/glass/GlassCard';
+import GlassCard from '../../../components/glass/GlassCard';
 import { Colors } from '../../../constants/colors';
 
 const STORAGE_KEY = '@location_sharing_enabled';

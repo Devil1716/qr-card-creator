@@ -6,11 +6,14 @@ import {
     TouchableOpacity,
     Animated,
     Dimensions,
-    Alert
+    Alert,
+    Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import QRCode from 'react-native-qrcode-svg';
+import { DeviceMotion } from 'expo-sensors';
+import { LinearGradient } from 'expo-linear-gradient';
 import cardEncryption from '../services/CardEncryption';
 import { Colors } from '../../../constants/colors';
 
@@ -30,6 +33,12 @@ const FloatingCard = ({
     const [decryptedData, setDecryptedData] = useState(null);
     const scaleAnim = useRef(new Animated.Value(isActive ? 1 : 0.9)).current;
     const opacityAnim = useRef(new Animated.Value(isActive ? 1 : 0.6)).current;
+
+    // 3D Rotation Values
+    const rotateX = useRef(new Animated.Value(0)).current;
+    const rotateY = useRef(new Animated.Value(0)).current;
+    const glareOpacity = useRef(new Animated.Value(0)).current;
+    const glarePosition = useRef(new Animated.Value(0)).current;
 
     // Decrypt card data on mount
     useEffect(() => {
@@ -55,7 +64,68 @@ const FloatingCard = ({
                 useNativeDriver: true
             })
         ]).start();
+
+        if (isActive) {
+            startMotionTracking();
+        } else {
+            stopMotionTracking();
+            resetPosition();
+        }
+
+        return () => stopMotionTracking();
     }, [isActive]);
+
+    const startMotionTracking = () => {
+        DeviceMotion.setUpdateInterval(50); // 20fps for smooth motion
+        DeviceMotion.addListener((data) => {
+            const { rotation } = data;
+            if (rotation) {
+                // Calculate tilt based on device rotation
+                // Beta is x-axis (pitch), Gamma is y-axis (roll)
+                // We clamp values to prevent extreme flipping
+                const pitch = Math.max(-0.5, Math.min(0.5, rotation.beta || 0));
+                const roll = Math.max(-0.5, Math.min(0.5, rotation.gamma || 0));
+
+                Animated.parallel([
+                    Animated.spring(rotateX, {
+                        toValue: pitch * 20, // Max 10 degrees tilt
+                        useNativeDriver: true,
+                        friction: 8,
+                        tension: 40
+                    }),
+                    Animated.spring(rotateY, {
+                        toValue: roll * 20,
+                        useNativeDriver: true,
+                        friction: 8,
+                        tension: 40
+                    }),
+                    // Glare effect logic: moves opposite to tilt
+                    Animated.spring(glarePosition, {
+                        toValue: roll * 300,
+                        useNativeDriver: true,
+                        friction: 8
+                    }),
+                    Animated.timing(glareOpacity, {
+                        toValue: Math.abs(roll) + Math.abs(pitch) > 0.1 ? 0.4 : 0,
+                        duration: 200,
+                        useNativeDriver: true
+                    })
+                ]).start();
+            }
+        });
+    };
+
+    const stopMotionTracking = () => {
+        DeviceMotion.removeAllListeners();
+    };
+
+    const resetPosition = () => {
+        Animated.parallel([
+            Animated.timing(rotateX, { toValue: 0, duration: 300, useNativeDriver: true }),
+            Animated.timing(rotateY, { toValue: 0, duration: 300, useNativeDriver: true }),
+            Animated.timing(glareOpacity, { toValue: 0, duration: 300, useNativeDriver: true })
+        ]).start();
+    };
 
     const handleDelete = () => {
         Alert.alert(
@@ -72,17 +142,6 @@ const FloatingCard = ({
         );
     };
 
-    const getCardGradientColor = () => {
-        const colors = {
-            '#3B82F6': ['rgba(59, 130, 246, 0.3)', 'rgba(37, 99, 235, 0.2)'],
-            '#10B981': ['rgba(16, 185, 129, 0.3)', 'rgba(5, 150, 105, 0.2)'],
-            '#F59E0B': ['rgba(245, 158, 11, 0.3)', 'rgba(217, 119, 6, 0.2)'],
-            '#EF4444': ['rgba(239, 68, 68, 0.3)', 'rgba(220, 38, 38, 0.2)'],
-            '#8B5CF6': ['rgba(139, 92, 246, 0.3)', 'rgba(124, 58, 237, 0.2)']
-        };
-        return colors[card.metadata?.color] || colors['#3B82F6'];
-    };
-
     return (
         <Animated.View
             style={[
@@ -90,7 +149,10 @@ const FloatingCard = ({
                 {
                     transform: [
                         { scale: scaleAnim },
-                        { translateY: index * 10 }
+                        { translateY: index * 10 },
+                        { perspective: 1000 }, // Enable 3D perspective
+                        { rotateX: rotateX.interpolate({ inputRange: [-20, 20], outputRange: ['20deg', '-20deg'] }) },
+                        { rotateY: rotateY.interpolate({ inputRange: [-20, 20], outputRange: ['-20deg', '20deg'] }) }
                     ],
                     opacity: opacityAnim,
                     zIndex: isActive ? 10 : 10 - index
@@ -99,6 +161,24 @@ const FloatingCard = ({
         >
             <TouchableOpacity activeOpacity={0.95} onPress={onPress}>
                 <BlurView intensity={40} style={styles.card} tint="dark">
+                    {/* Glare Effect */}
+                    <Animated.View
+                        style={[
+                            styles.glare,
+                            {
+                                opacity: glareOpacity,
+                                transform: [{ translateX: glarePosition }, { rotate: '45deg' }]
+                            }
+                        ]}
+                    >
+                        <LinearGradient
+                            colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{ flex: 1 }}
+                        />
+                    </Animated.View>
+
                     {/* Card Header */}
                     <View style={styles.header}>
                         <View style={styles.labelContainer}>
@@ -177,6 +257,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
         overflow: 'hidden'
+    },
+    glare: {
+        position: 'absolute',
+        top: -100,
+        bottom: -100,
+        width: 150,
+        zIndex: 5,
+        pointerEvents: 'none' // Ensure clicks pass through to buttons
     },
     header: {
         flexDirection: 'row',
