@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarPicker from './CalendarPicker';
 import RecurrenceEditor from './RecurrenceEditor';
 import { useAbsenceScheduler, AbsenceType } from '../hooks/useAbsenceScheduler';
-import GlassCard from '../../../components/glass/GlassCard';
+import GlassCard from '../../components/glass/GlassCard';
 import GlassBackground from '../../../components/glass/GlassBackground';
 import { Colors } from '../../../constants/colors';
 
