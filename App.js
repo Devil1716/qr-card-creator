@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCameraPermissions } from 'expo-camera';
-import * as MediaLibrary from 'expo-media-library';
+
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
@@ -59,7 +59,7 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
 
   const [permission, requestPermission] = useCameraPermissions();
-  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState('');
   const [userName, setUserName] = useState('');
@@ -272,109 +272,7 @@ export default function App() {
     }
   };
 
-  const saveQRCardToGallery = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Not Supported', 'Saving to gallery is not supported on the web version yet.');
-      return;
-    }
 
-    if (!viewShotRef.current) {
-      Alert.alert('Error', 'Unable to capture card image. Please try again.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // 1. Request Media Library Permissions explicitly if needed
-      let mediaStatus = mediaPermission?.status;
-      if (mediaStatus !== 'granted') {
-        const { status } = await requestMediaPermission();
-        mediaStatus = status;
-      }
-
-      if (mediaStatus !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'We need access to your gallery to save the QR card. Please grant permission in settings.',
-          [{ text: 'OK' }]
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Wait for view to be ready
-      if (!isViewReady) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-
-      // 2. Capture Image
-      let tempUri;
-      try {
-        tempUri = await viewShotRef.current.capture();
-      } catch (err) {
-        // Retry once
-        await new Promise(resolve => setTimeout(resolve, 500));
-        tempUri = await viewShotRef.current.capture();
-      }
-
-      if (!tempUri) throw new Error('Failed to capture image');
-
-      // 3. Save to "R8 Cards" Album (Public Gallery)
-      try {
-        const asset = await MediaLibrary.createAssetAsync(tempUri);
-        const albumName = 'R8 Cards';
-        const album = await MediaLibrary.getAlbumAsync(albumName);
-
-        if (album) {
-          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-        } else {
-          await MediaLibrary.createAlbumAsync(albumName, asset, false);
-        }
-
-        Alert.alert('Saved! 📸', `Card saved to your Gallery in "${albumName}" folder.`);
-      } catch (galleryError) {
-        console.error('Gallery save error:', galleryError);
-        Alert.alert('Saved', 'Image saved to detailed history, but gallery save failed.');
-      }
-
-      // 4. Background: Save to Internal Storage for History (Best Effort)
-      try {
-        const storageFolder = `${FileSystem.documentDirectory}QRCards/`;
-        const dirInfo = await FileSystem.getInfoAsync(storageFolder);
-        if (!dirInfo.exists) {
-          await FileSystem.makeDirectoryAsync(storageFolder, { intermediates: true });
-        }
-
-        const fileName = `card_${Date.now()}.png`;
-        const internalUri = `${storageFolder}${fileName}`;
-        await FileSystem.copyAsync({ from: tempUri, to: internalUri });
-
-        const newCard = {
-          id: Date.now(),
-          data: scannedData,
-          name: userName || CARD_DEFAULTS.ANONYMOUS_NAME,
-          timestamp: new Date().toLocaleString(),
-          fileName: fileName,
-          imageUri: internalUri,
-        };
-
-        await addCardToStorage(newCard, savedCards);
-        setSavedCards(prev => [...prev, newCard]);
-      } catch (internalError) {
-        logger.error('Internal history save failed:', internalError);
-        // Do not alert user, they have the gallery copy
-      }
-
-    } catch (error) {
-      const errorMessage = getErrorMessage(error, ErrorMessages.SAVE_FAILED);
-      Alert.alert('Error', errorMessage);
-      console.error('Save error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const shareImage = async (uri) => {
     try {
@@ -566,16 +464,7 @@ export default function App() {
 
               <View style={styles.glassActions}>
                 <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={{ flex: 1 }}
-                    onPress={saveQRCardToGallery}
-                    disabled={isLoading}
-                  >
-                    <GlassCard intensity={30} style={styles.glassActionBtn}>
-                      <Ionicons name={isLoading ? "hourglass" : "download-outline"} size={24} color={Colors.success} />
-                      <Text style={styles.glassActionText}>Save Gallery</Text>
-                    </GlassCard>
-                  </TouchableOpacity>
+
 
                   <TouchableOpacity
                     style={{ flex: 1 }}
