@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import SharedGroupPreferences from 'react-native-shared-group-preferences';
+// Safe Import for Expo Go (where native module might be missing)
+let SharedGroupPreferences;
+try {
+    SharedGroupPreferences = require('react-native-shared-group-preferences').default;
+} catch (e) {
+    console.log("SharedGroupPreferences module not found (Expo Go mode)");
+}
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -149,11 +155,15 @@ const StudentDashboard = ({ onSignOut }) => {
                 stopId: myStop || userData?.stopId || 'unassigned' // Use saved stop
             }, { merge: true });
 
-            if (Platform.OS === 'android') {
-                SharedGroupPreferences.setItem('optin_data', JSON.stringify({
-                    morning: trip === 'morning' ? value : morningOptIn,
-                    evening: trip === 'evening' ? value : eveningOptIn
-                }), 'WidgetPrefs').catch(() => { });
+            if (Platform.OS === 'android' && SharedGroupPreferences) {
+                try {
+                    await SharedGroupPreferences.setItem('optin_data', JSON.stringify({
+                        morning: trip === 'morning' ? value : morningOptIn,
+                        evening: trip === 'evening' ? value : eveningOptIn
+                    }), 'WidgetPrefs');
+                } catch (e) {
+                    console.log("Widget update failed (or not supported)");
+                }
             }
         } catch (error) {
             Alert.alert('Error', 'Failed to update boarding status.');
@@ -264,7 +274,7 @@ const StudentDashboard = ({ onSignOut }) => {
                 {/* Header */}
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.greeting}>Good Morning,</Text>
+                        <Text style={styles.greeting}>Live Update Active! ⚡</Text>
                         <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
                         <TouchableOpacity onPress={() => setShowStopModal(true)}>
                             <Text style={styles.currentStop}>

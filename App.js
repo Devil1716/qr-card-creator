@@ -15,7 +15,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCameraPermissions } from 'expo-camera';
 
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 import ViewShot from 'react-native-view-shot';
