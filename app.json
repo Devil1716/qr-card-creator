@@ -2,7 +2,7 @@
   "expo": {
     "name": "R8",
     "slug": "qr-card-creator",
-    "version": "1.8.2",
+    "version": "1.8.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -44,6 +44,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      "./plugins/withAndroidRepoFix.js",
       [
         "expo-camera",
         {
