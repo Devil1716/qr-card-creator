@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform, Easing } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform, Easing, LayoutAnimation, PanResponder, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
@@ -7,6 +7,7 @@ import { doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
+import PassCard from '../../components/cards/PassCard';
 import FluidButton from '../../components/buttons/FluidButton';
 import { Colors } from '../../constants/colors';
 import { BusMapView, useBusLocation } from '../../features/location';
@@ -15,11 +16,60 @@ import ChangePasswordModal from '../../screens/auth/ChangePasswordModal';
 const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigation }) => {
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [morningOptIn, setMorningOptIn] = useState(false);
-    const [eveningOptIn, setEveningOptIn] = useState(false);
-    const [showMap, setShowMap] = useState(false);
+    const [morningOptIn, setMorningOptIn] = useState(true);
+    const [eveningOptIn, setEveningOptIn] = useState(true);
+    const [isMapExpanded, setIsMapExpanded] = useState(false);
 
-    // Hybrid bus location: live when available, estimated when offline
+    // Swipe-to-Reveal Logic
+    const [isCardRevealed, setIsCardRevealed] = useState(false);
+    const [scrollEnabled, setScrollEnabled] = useState(true);
+    const pan = useRef(new Animated.ValueXY()).current;
+    const { height } = Dimensions.get('window');
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                // Only enable if pulling down, not revealed, and roughly vertical
+                return !isCardRevealed && gestureState.dy > 10 && Math.abs(gestureState.dx) < 20;
+            },
+            onPanResponderGrant: () => {
+                setScrollEnabled(false);
+            },
+            onPanResponderMove: Animated.event(
+                [null, { dy: pan.y }],
+                { useNativeDriver: false }
+            ),
+            onPanResponderRelease: (_, gestureState) => {
+                setScrollEnabled(true);
+                if (gestureState.dy > 120) { // Threshold to reveal
+                    setIsCardRevealed(true);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Animated.spring(pan, {
+                        toValue: { x: 0, y: height * 0.25 }, // Center roughly
+                        useNativeDriver: true,
+                        tension: 50,
+                        friction: 7
+                    }).start();
+                } else {
+                    // Reset
+                    Animated.spring(pan, {
+                        toValue: { x: 0, y: 0 },
+                        useNativeDriver: true
+                    }).start();
+                }
+            }
+        })
+    ).current;
+
+    const dismissCard = () => {
+        setIsCardRevealed(false);
+        Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true
+        }).start();
+    };
+
+    // Hybrid bus location logic
     const {
         location: busLocation,
         status: busStatus,
@@ -31,7 +81,7 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
     } = useBusLocation();
 
     // Pulse Animation for Live Badge
-    const pulseAnim = React.useRef(new Animated.Value(1)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         if (isLive) {
@@ -51,8 +101,6 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
                     })
                 ])
             ).start();
-        } else {
-            pulseAnim.setValue(1); // Reset
         }
     }, [isLive]);
 
@@ -82,9 +130,12 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
         const unsubOptIn = onSnapshot(doc(db, 'optins', `${auth.currentUser.uid}_${todayStr}`), (doc) => {
             if (doc.exists()) {
                 const data = doc.data();
-                setMorningOptIn(data.morning || false);
-                setEveningOptIn(data.evening || false);
-                updateWidget(data.morning || false, data.evening || false);
+                setMorningOptIn(data.morning !== undefined ? data.morning : true);
+                setEveningOptIn(data.evening !== undefined ? data.evening : true);
+                updateWidget(
+                    data.morning !== undefined ? data.morning : true,
+                    data.evening !== undefined ? data.evening : true
+                );
             }
         });
 
@@ -110,8 +161,6 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
 
             await setDoc(optInRef, updateData, { merge: true });
 
-            // Basic optimization: we update widget with new state immediately
-            // Note: In a real scenario, we should wait for Firestore, but for UI responsiveness we use local valid data
             const newMorning = trip === 'morning' ? value : morningOptIn;
             const newEvening = trip === 'evening' ? value : eveningOptIn;
             updateWidget(newMorning, newEvening);
@@ -119,6 +168,11 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
             console.error('Error updating opt-in:', error);
             Alert.alert('Error', 'Failed to update boarding status.');
         }
+    };
+
+    const toggleMap = () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setIsMapExpanded(!isMapExpanded);
     };
 
     if (loading) {
@@ -133,198 +187,198 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
 
     return (
         <GlassBackground>
-            <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-                {/* Header - Greeting */}
+            <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={scrollEnabled}
+            >
+
+                {/* 1. Header - Modern & Minimal */}
                 <View style={styles.header}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>
+                                {userData?.name ? userData.name.charAt(0).toUpperCase() : 'S'}
+                            </Text>
+                        </View>
                         <View>
                             <Text style={styles.greeting}>Hello,</Text>
-                            <Text style={styles.userName}>{userData?.name || 'Student'}</Text>
+                            <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
                         </View>
-                        <FluidButton
-                            icon="log-out-outline"
-                            onPress={onSignOut}
-                            type="ghost"
-                            size="small"
-                        />
                     </View>
-                    <Text style={styles.busInfo}>
-                        {userData?.busId ? `Assigned to Bus: ${userData.busId}` : 'Not assigned to a bus yet'}
-                    </Text>
+                    <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
+                        <Ionicons name="settings-outline" size={22} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Bus Location Card */}
-                {userData?.busId && (
-                    <View style={styles.section}>
+                {/* 2. Hero Card Section */}
+                <View style={[styles.heroSection, { zIndex: 100 }]}>
+                    {/* Backdrop Overlay when revealed */}
+                    {isCardRevealed && (
                         <TouchableOpacity
-                            style={styles.mapHeader}
-                            onPress={() => setShowMap(!showMap)}
+                            style={styles.backdrop}
+                            activeOpacity={1}
+                            onPress={dismissCard}
                         >
-                            <View style={styles.mapHeaderLeft}>
-                                <Ionicons
-                                    name={isOperating ? "location" : "location-outline"}
-                                    size={20}
-                                    color={isOperating ? (isLive ? Colors.success : Colors.accent) : Colors.textSecondary}
-                                />
-                                <Text style={styles.sectionTitle}>
-                                    {isLive ? 'Bus is Live' : (isOperating ? 'Estimated Location' : 'Bus Location')}
-                                </Text>
-                                {isOperating && (
-                                    <Animated.View style={[styles.liveBadge, !isLive && styles.estimatedBadge, isLive && { opacity: pulseAnim }]}>
-                                        <Text style={[styles.liveBadgeText, !isLive && styles.estimatedBadgeText]}>
-                                            {isLive ? 'LIVE' : 'ESTIMATED'}
-                                        </Text>
-                                    </Animated.View>
-                                )}
-                            </View>
-                            <Ionicons
-                                name={showMap ? "chevron-up" : "chevron-down"}
-                                size={20}
-                                color={Colors.textSecondary}
-                            />
+                            <View style={styles.backdropBlur} />
                         </TouchableOpacity>
+                    )}
 
-                        {/* ETA Info Bar */}
-                        {isOperating && nextStop && (
-                            <View style={styles.etaBar}>
-                                <View style={styles.etaInfo}>
-                                    <Ionicons name="navigate-outline" size={14} color={Colors.primary} />
-                                    <Text style={styles.etaText}>Next: {nextStop.name}</Text>
-                                </View>
-                                {eta && (
-                                    <Text style={styles.etaTime}>ETA: {eta}</Text>
-                                )}
-                            </View>
-                        )}
+                    <Animated.View
+                        style={{
+                            transform: [{ translateY: pan.y }, { scale: isCardRevealed ? 1.1 : 1 }],
+                            zIndex: 101
+                        }}
+                        {...panResponder.panHandlers}
+                    >
+                        <PassCard
+                            userData={userData}
+                            flipped={isCardRevealed}
+                            onFlip={(flipped) => {
+                                // Manual flip logic if needed, but we mostly control via reveal state
+                                if (!isCardRevealed && flipped) {
+                                    // If user taps to flip while not revealed, maybe trigger reveal?
+                                    // For now, let's keep it simple: manual flip only works if allowed
+                                }
+                            }}
+                        />
+                    </Animated.View>
 
-                        {showMap && (
-                            <GlassCard intensity={20} style={styles.mapCard}>
-                                {busLocation ? (
-                                    <BusMapView
-                                        isDriver={false}
-                                        otherBuses={[{
-                                            id: 'driver',
-                                            latitude: busLocation.latitude,
-                                            longitude: busLocation.longitude
-                                        }]}
-                                        busRoute={{ coordinates: routePath }}
-                                        style={styles.mapView}
-                                    />
-                                ) : (
-                                    <View style={styles.mapOffline}>
-                                        <Ionicons name="bus-outline" size={32} color={Colors.textSecondary} />
-                                        <Text style={styles.mapOfflineText}>
-                                            {isOperating ? 'Calculating route...' : 'Bus not operating now'}
+                    {/* Status Pill below card */}
+                    <Animated.View style={[styles.statusPill, { opacity: isCardRevealed ? 0 : 1 }]}>
+                        <View style={[styles.statusDot, { backgroundColor: Colors.success }]} />
+                        <Text style={styles.statusText}>Active • Expires Dec 2026</Text>
+                    </Animated.View>
+                </View>
+
+                {/* 3. Live Bus Status (Compact ETA Pill) */}
+                {userData?.busId && (
+                    <TouchableOpacity
+                        style={styles.etaContainer}
+                        activeOpacity={0.9}
+                        onPress={toggleMap}
+                    >
+                        <GlassCard intensity={40} style={styles.etaCard}>
+                            <View style={styles.etaHeader}>
+                                <View style={styles.etaLeft}>
+                                    <View style={[styles.iconBox, { backgroundColor: isLive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.1)' }]}>
+                                        <Ionicons name="bus" size={20} color={isLive ? Colors.success : '#fff'} />
+                                    </View>
+                                    <View>
+                                        <Text style={styles.etaTitle}>
+                                            {isOperating ? (nextStop ? `Next: ${nextStop.name}` : 'En Route') : 'Bus Not Operating'}
+                                        </Text>
+                                        <Text style={styles.etaSubtitle}>
+                                            {isOperating ? (eta ? `Arriving in ${eta}` : 'Calculating ETA...') : 'Schedule: 7:00 AM - 9:00 PM'}
                                         </Text>
                                     </View>
-                                )}
-                            </GlassCard>
-                        )}
-                    </View>
+                                </View>
+                                <Ionicons name={isMapExpanded ? "chevron-up" : "chevron-down"} size={20} color="rgba(255,255,255,0.5)" />
+                            </View>
+
+                            {/* Expanded Map View */}
+                            {isMapExpanded && (
+                                <View style={styles.mapContainer}>
+                                    {busLocation ? (
+                                        <BusMapView
+                                            isDriver={false}
+                                            otherBuses={[{
+                                                id: 'driver',
+                                                latitude: busLocation.latitude,
+                                                longitude: busLocation.longitude
+                                            }]}
+                                            busRoute={{ coordinates: routePath }}
+                                            style={styles.mapView}
+                                        />
+                                    ) : (
+                                        <View style={styles.mapOffline}>
+                                            <Ionicons name="cloud-offline-outline" size={24} color={Colors.textSecondary} />
+                                            <Text style={styles.mapOfflineText}>Live location unavailable</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+                        </GlassCard>
+                    </TouchableOpacity>
                 )}
 
-                {/* Daily Boarding Intent (Opt-In) */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Today's Boarding Status</Text>
-                    <GlassCard intensity={30}>
-                        <View style={styles.optInRow}>
-                            <View style={styles.optInInfo}>
-                                <Ionicons name="sunny-outline" size={24} color={Colors.accent} />
-                                <View style={styles.optInTextContainer}>
-                                    <Text style={styles.optInLabel}>Morning Trip</Text>
-                                    <Text style={styles.optInSubtext}>To School / College</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={morningOptIn}
-                                onValueChange={(val) => {
-                                    setMorningOptIn(val);
-                                    toggleOptIn('morning', val);
-                                }}
-                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.primaryLight }}
-                            />
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        <View style={styles.optInRow}>
-                            <View style={styles.optInInfo}>
-                                <Ionicons name="moon-outline" size={24} color={Colors.primaryLight} />
-                                <View style={styles.optInTextContainer}>
-                                    <Text style={styles.optInLabel}>Evening Trip</Text>
-                                    <Text style={styles.optInSubtext}>Heading Home</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={eveningOptIn}
-                                onValueChange={(val) => {
-                                    setEveningOptIn(val);
-                                    toggleOptIn('evening', val);
-                                }}
-                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.primaryLight }}
-                            />
-                        </View>
-                    </GlassCard>
-                </View>
-
-                {/* Main Actions */}
+                {/* 4. Quick Actions Grid */}
                 <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={styles.actionItem} onPress={() => { Haptics.selectionAsync(); onStartScanning(); }}>
-                        <GlassCard style={styles.actionCard} intensity={40}>
-                            <View style={styles.actionContent}>
-                                <View style={[styles.iconCircle, { backgroundColor: 'rgba(124, 58, 237, 0.15)' }]}>
-                                    <Ionicons name="scan-outline" size={32} color={Colors.primary} />
-                                </View>
-                                <Text style={styles.actionTitle}>Update Card</Text>
-                                <Text style={styles.actionDesc}>Scan bus QR</Text>
-                            </View>
+                    <TouchableOpacity style={styles.actionBtn} onPress={onStartScanning}>
+                        <GlassCard style={styles.actionBtnCard} intensity={25}>
+                            <Ionicons name="scan" size={24} color={Colors.primary} />
+                            <Text style={styles.actionBtnText}>Scan QR</Text>
                         </GlassCard>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionItem} onPress={() => { Haptics.selectionAsync(); onViewHistory(); }}>
-                        <GlassCard style={styles.actionCard} intensity={25}>
-                            <View style={styles.actionContent}>
-                                <View style={[styles.iconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                                    <Ionicons name="card-outline" size={32} color={Colors.success} />
-                                </View>
-                                <Text style={styles.actionTitle}>My Passes</Text>
-                                <Text style={styles.actionDesc}>View history</Text>
-                            </View>
+                    <TouchableOpacity style={styles.actionBtn} onPress={onViewHistory}>
+                        <GlassCard style={styles.actionBtnCard} intensity={25}>
+                            <Ionicons name="time-outline" size={24} color={Colors.accent} />
+                            <Text style={styles.actionBtnText}>History</Text>
                         </GlassCard>
                     </TouchableOpacity>
                 </View>
 
-                {/* Profile / Stats Summary (Optional) */}
-                {!userData?.busId && (
-                    <View style={styles.setupCard}>
-                        <GlassCard intensity={80} style={{ padding: 20 }}>
-                            <Ionicons name="information-circle-outline" size={32} color={Colors.primaryLight} />
-                            <Text style={styles.setupTitle}>Initial Setup Required</Text>
-                            <Text style={styles.setupDesc}>
-                                Please scan the QR code located in your bus to link your account and generate your pass.
-                            </Text>
-                            <View style={{ marginTop: 24 }}>
-                                <FluidButton
-                                    title="Scan Bus QR Now"
-                                    onPress={onStartScanning}
-                                    type="primary"
-                                    size="large"
-                                    icon="scan"
+                {/* 5. Boarding Opt-In (Compact Toggles) */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Today's Boarding</Text>
+                    <View style={styles.optInGrid}>
+                        {/* Morning Toggle */}
+                        <GlassCard style={styles.optInPill} intensity={20}>
+                            <View style={styles.optInContent}>
+                                <Ionicons name="sunny" size={20} color={morningOptIn ? Colors.accent : 'rgba(255,255,255,0.3)'} />
+                                <Text style={[styles.optInLabel, morningOptIn && { color: '#fff', fontWeight: 'bold' }]}>Morning</Text>
+                                <Switch
+                                    value={morningOptIn}
+                                    onValueChange={(val) => {
+                                        setMorningOptIn(val);
+                                        toggleOptIn('morning', val);
+                                    }}
+                                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                    thumbColor={'#fff'}
+                                    style={{ transform: [{ scale: 0.8 }] }}
                                 />
                             </View>
                         </GlassCard>
+
+                        {/* Evening Toggle */}
+                        <GlassCard style={styles.optInPill} intensity={20}>
+                            <View style={styles.optInContent}>
+                                <Ionicons name="moon" size={18} color={eveningOptIn ? Colors.primaryLight : 'rgba(255,255,255,0.3)'} />
+                                <Text style={[styles.optInLabel, eveningOptIn && { color: '#fff', fontWeight: 'bold' }]}>Evening</Text>
+                                <Switch
+                                    value={eveningOptIn}
+                                    onValueChange={(val) => {
+                                        setEveningOptIn(val);
+                                        toggleOptIn('evening', val);
+                                    }}
+                                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                    thumbColor={'#fff'}
+                                    style={{ transform: [{ scale: 0.8 }] }}
+                                />
+                            </View>
+                        </GlassCard>
+                    </View>
+                </View>
+
+                {/* Setup Prompt (if needed) */}
+                {!userData?.busId && (
+                    <View style={{ marginTop: 20 }}>
+                        <FluidButton
+                            title="Link Your Bus"
+                            onPress={onStartScanning}
+                            type="primary"
+                            icon="link"
+                        />
                     </View>
                 )}
 
                 <View style={{ height: 100 }} />
             </ScrollView>
-            {/* Password Change Modal */}
+
             <ChangePasswordModal
                 visible={userData?.requiresPasswordChange === true}
-                onSuccess={() => {
-                    // Update local state is handled by onSnapshot, so modal will close automatically
-                    // when Firestore updates.
-                }}
+                onSuccess={() => { }}
             />
         </GlassBackground>
     );
@@ -334,210 +388,205 @@ const styles = StyleSheet.create({
     scrollContainer: {
         padding: 24,
         paddingTop: 60,
+        paddingBottom: 40,
     },
     center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
+    // Header
     header: {
-        marginBottom: 32,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    avatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    avatarText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 18,
     },
     greeting: {
-        fontSize: 20,
-        color: Colors.textSecondary,
-        fontWeight: '500',
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '600',
     },
     userName: {
-        fontSize: 40,
-        color: Colors.text,
-        fontWeight: '700',
-        letterSpacing: -1,
-    },
-    signOutBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    busInfo: {
-        fontSize: 16,
-        color: Colors.primaryLight,
-        marginTop: 8,
-        fontWeight: '600',
-    },
-    section: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
         fontSize: 18,
-        color: Colors.text,
-        fontWeight: '600',
-        marginBottom: 12,
-        marginLeft: 4,
-    },
-    optInRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    optInInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    optInTextContainer: {
-        justifyContent: 'center',
-    },
-    optInLabel: {
-        fontSize: 18,
-        color: Colors.text,
-        fontWeight: '600',
-    },
-    optInSubtext: {
-        fontSize: 13,
-        color: Colors.textSecondary,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        marginVertical: 16,
-    },
-    actionsGrid: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 24,
-    },
-    actionItem: {
-        flex: 1,
-    },
-    actionCard: {
-        height: 160,
-        padding: 0,
-    },
-    actionContent: {
-        padding: 16,
-        height: '100%',
-        justifyContent: 'center',
-    },
-    iconCircle: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    actionTitle: {
-        fontSize: 18,
-        color: Colors.text,
-        fontWeight: '700',
-    },
-    actionDesc: {
-        fontSize: 13,
-        color: Colors.textSecondary,
-        marginTop: 2,
-    },
-    setupCard: {
-        marginTop: 12,
-    },
-    setupTitle: {
-        fontSize: 20,
-        color: Colors.text,
-        fontWeight: '700',
-        marginTop: 12,
-    },
-    setupDesc: {
-        fontSize: 15,
-        color: Colors.textSecondary,
-        marginTop: 8,
-        lineHeight: 22,
-    },
-    setupButton: {
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginTop: 20,
-    },
-    setupButtonText: {
         color: '#fff',
-        fontSize: 16,
+        fontWeight: '700',
+    },
+    settingsBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    backdrop: {
+        position: 'absolute',
+        top: -1000,
+        left: -500,
+        right: -500,
+        bottom: -1000,
+        zIndex: 90,
+    },
+    backdropBlur: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0,0,0,0.7)',
+    },
+    // Hero Section
+    heroSection: {
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    statusPill: {
+        marginTop: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 6,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    statusText: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.7)',
         fontWeight: '600',
     },
-    mapHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 12,
+    // ETA Bar
+    etaContainer: {
+        marginBottom: 24,
     },
-    mapHeaderLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    liveBadge: {
-        backgroundColor: 'rgba(34, 197, 94, 0.2)',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
-    liveBadgeText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: Colors.success,
-        letterSpacing: 0.5,
-    },
-    mapCard: {
+    etaCard: {
         padding: 0,
-        overflow: 'hidden',
-    },
-    mapView: {
-        height: 200,
         borderRadius: 16,
     },
+    etaHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+    },
+    etaLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    iconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    etaTitle: {
+        fontSize: 14,
+        color: '#fff',
+        fontWeight: '700',
+    },
+    etaSubtitle: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.6)',
+    },
+    mapContainer: {
+        height: 200,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.1)',
+    },
+    mapView: {
+        flex: 1,
+    },
     mapOffline: {
-        height: 120,
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         gap: 8,
     },
     mapOfflineText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+    },
+    // Actions Grid
+    actionsGrid: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 32,
+    },
+    actionBtn: {
+        flex: 1,
+    },
+    actionBtnCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 16,
+        height: 60,
+    },
+    actionBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+        fontSize: 15,
+    },
+    // Section
+    section: {
+        marginBottom: 24,
+    },
+    sectionTitle: {
         fontSize: 13,
-        color: Colors.textSecondary,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.5)',
+        letterSpacing: 1,
+        marginBottom: 12,
+        textTransform: 'uppercase',
     },
-    estimatedBadge: {
-        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    optInGrid: {
+        flexDirection: 'row',
+        gap: 12,
     },
-    estimatedBadgeText: {
-        color: Colors.accent,
+    optInPill: {
+        flex: 1,
+        padding: 0,
     },
-    etaBar: {
+    optInContent: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 10,
-        marginBottom: 12,
+        padding: 12,
     },
-    etaInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    etaText: {
+    optInLabel: {
         fontSize: 13,
-        color: Colors.text,
-    },
-    etaTime: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: Colors.primary,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '500',
+        flex: 1,
+        marginLeft: 8,
     },
 });
 
 export default StudentDashboard;
+

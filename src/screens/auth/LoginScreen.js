@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -16,39 +16,106 @@ const LoginScreen = ({ navigation }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(true);
+    const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
+    const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
     // Seeding State
     const [isSeeding, setIsSeeding] = useState(false);
     const [seedStatus, setSeedStatus] = useState('');
 
-    // Animations - run only once on mount
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(30)).current;
+    // Staggered entrance animations
+    const logoAnim = useRef(new Animated.Value(0)).current;
+    const titleAnim = useRef(new Animated.Value(0)).current;
+    const cardAnim = useRef(new Animated.Value(0)).current;
+    const footerAnim = useRef(new Animated.Value(0)).current;
+
+    // Logo breathing animation
+    const logoBreathAnim = useRef(new Animated.Value(0)).current;
+
+    // Input focus animations
+    const identifierFocusAnim = useRef(new Animated.Value(0)).current;
+    const passwordFocusAnim = useRef(new Animated.Value(0)).current;
+
     const hasAnimated = useRef(false);
 
-    // Use useMemo instead of useEffect for isAutoMode to prevent re-renders
     const isAutoMode = useMemo(() => !identifier.includes('@'), [identifier]);
 
-    // Run animation only once
-    React.useEffect(() => {
+    // Staggered entrance animation sequence
+    useEffect(() => {
         if (hasAnimated.current) return;
         hasAnimated.current = true;
 
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
+        const staggerDelay = 150;
+        const duration = 700;
+
+        Animated.stagger(staggerDelay, [
+            // Logo entrance
+            Animated.timing(logoAnim, {
                 toValue: 1,
-                duration: 800,
+                duration: duration,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.back(1.2)),
+            }),
+            // Title entrance
+            Animated.timing(titleAnim, {
+                toValue: 1,
+                duration: duration,
                 useNativeDriver: true,
                 easing: Easing.out(Easing.cubic),
             }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 800,
+            // Card entrance
+            Animated.timing(cardAnim, {
+                toValue: 1,
+                duration: duration,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.cubic),
+            }),
+            // Footer entrance
+            Animated.timing(footerAnim, {
+                toValue: 1,
+                duration: duration,
                 useNativeDriver: true,
                 easing: Easing.out(Easing.cubic),
             }),
         ]).start();
+
+        // Start logo breathing animation (loops forever)
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(logoBreathAnim, {
+                    toValue: 1,
+                    duration: 2000,
+                    useNativeDriver: true,
+                    easing: Easing.inOut(Easing.sin),
+                }),
+                Animated.timing(logoBreathAnim, {
+                    toValue: 0,
+                    duration: 2000,
+                    useNativeDriver: true,
+                    easing: Easing.inOut(Easing.sin),
+                }),
+            ])
+        ).start();
     }, []);
+
+    // Handle input focus animations
+    useEffect(() => {
+        Animated.timing(identifierFocusAnim, {
+            toValue: isIdentifierFocused ? 1 : 0,
+            duration: 200,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.cubic),
+        }).start();
+    }, [isIdentifierFocused]);
+
+    useEffect(() => {
+        Animated.timing(passwordFocusAnim, {
+            toValue: isPasswordFocused ? 1 : 0,
+            duration: 200,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.cubic),
+        }).start();
+    }, [isPasswordFocused]);
 
     const handleLogin = async () => {
         if (!identifier.trim()) {
@@ -75,7 +142,6 @@ const LoginScreen = ({ navigation }) => {
 
             console.log('Attempting login with:', emailToUse);
             await signInWithEmailAndPassword(auth, emailToUse, passwordToUse);
-            // Navigation handled by auth listener
         } catch (error) {
             console.error('Login error:', error);
             let msg = error.message;
@@ -108,6 +174,49 @@ const LoginScreen = ({ navigation }) => {
         );
     };
 
+    // Interpolations for entrance animations
+    const logoStyle = {
+        opacity: logoAnim,
+        transform: [
+            { translateY: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] }) },
+            { scale: logoBreathAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) },
+        ],
+    };
+
+    const titleStyle = {
+        opacity: titleAnim,
+        transform: [{ translateY: titleAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+    };
+
+    const cardStyle = {
+        opacity: cardAnim,
+        transform: [{ translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+    };
+
+    const footerStyle = {
+        opacity: footerAnim,
+        transform: [{ translateY: footerAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+    };
+
+    // Input focus interpolations
+    const identifierBorderColor = identifierFocusAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['rgba(255, 255, 255, 0.1)', Colors.primary],
+    });
+    const identifierIconColor = identifierFocusAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['rgba(255,255,255,0.4)', Colors.primaryLight],
+    });
+
+    const passwordBorderColor = passwordFocusAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['rgba(255, 255, 255, 0.1)', Colors.primary],
+    });
+    const passwordIconColor = passwordFocusAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['rgba(255,255,255,0.4)', Colors.primaryLight],
+    });
+
     return (
         <GlassBackground>
             <KeyboardAvoidingView
@@ -120,21 +229,44 @@ const LoginScreen = ({ navigation }) => {
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
-                    <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                    {/* Animated R8 Logo */}
+                    <Animated.View style={[styles.logoContainer, logoStyle]}>
+                        <LinearGradient
+                            colors={[Colors.primary, Colors.primaryLight]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.logoBadge}
+                        >
+                            <Text style={styles.logoText}>R8</Text>
+                        </LinearGradient>
+                        <View style={styles.logoGlow} />
+                    </Animated.View>
 
-                        <View style={styles.header}>
-                            <Text style={styles.title}>Welcome Back</Text>
-                            <Text style={styles.subtitle}>Enter your Name to access your pass.</Text>
-                        </View>
+                    {/* Header with staggered animation */}
+                    <Animated.View style={[styles.header, titleStyle]}>
+                        <Text style={styles.title}>Welcome Back</Text>
+                        <Text style={styles.subtitle}>Enter your name to access your pass</Text>
+                    </Animated.View>
 
+                    {/* Card with staggered animation */}
+                    <Animated.View style={cardStyle}>
                         <GlassCard style={styles.card}>
                             <View style={styles.form}>
 
-                                {/* Identifier Input */}
+                                {/* Identifier Input with focus effect */}
                                 <View style={styles.inputWrapper}>
                                     <Text style={styles.label}>FULL NAME / ID</Text>
-                                    <View style={styles.inputContainer}>
-                                        <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                    <Animated.View style={[
+                                        styles.inputContainer,
+                                        { borderColor: identifierBorderColor }
+                                    ]}>
+                                        <Animated.View style={{ marginRight: 12 }}>
+                                            <Ionicons
+                                                name="person"
+                                                size={20}
+                                                color={isIdentifierFocused ? Colors.primaryLight : 'rgba(255,255,255,0.4)'}
+                                            />
+                                        </Animated.View>
                                         <TextInput
                                             style={styles.input}
                                             placeholder="e.g. Rahul Sharma"
@@ -146,16 +278,27 @@ const LoginScreen = ({ navigation }) => {
                                             returnKeyType={isAutoMode ? "done" : "next"}
                                             blurOnSubmit={isAutoMode}
                                             onSubmitEditing={isAutoMode ? handleLogin : undefined}
+                                            onFocus={() => setIsIdentifierFocused(true)}
+                                            onBlur={() => setIsIdentifierFocused(false)}
                                         />
-                                    </View>
+                                    </Animated.View>
                                 </View>
 
-                                {/* Password Section - Always rendered but conditionally visible */}
+                                {/* Password Section */}
                                 {!isAutoMode && (
                                     <View style={styles.inputWrapper}>
                                         <Text style={styles.label}>PASSWORD</Text>
-                                        <View style={styles.inputContainer}>
-                                            <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.6)" style={styles.icon} />
+                                        <Animated.View style={[
+                                            styles.inputContainer,
+                                            { borderColor: passwordBorderColor }
+                                        ]}>
+                                            <Animated.View style={{ marginRight: 12 }}>
+                                                <Ionicons
+                                                    name="lock-closed"
+                                                    size={20}
+                                                    color={isPasswordFocused ? Colors.primaryLight : 'rgba(255,255,255,0.4)'}
+                                                />
+                                            </Animated.View>
                                             <TextInput
                                                 style={styles.input}
                                                 placeholder="Enter Password"
@@ -165,11 +308,13 @@ const LoginScreen = ({ navigation }) => {
                                                 secureTextEntry={!showPassword}
                                                 returnKeyType="done"
                                                 onSubmitEditing={handleLogin}
+                                                onFocus={() => setIsPasswordFocused(true)}
+                                                onBlur={() => setIsPasswordFocused(false)}
                                             />
                                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                                 <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.6)" />
                                             </TouchableOpacity>
-                                        </View>
+                                        </Animated.View>
                                     </View>
                                 )}
 
@@ -211,13 +356,14 @@ const LoginScreen = ({ navigation }) => {
 
                             </View>
                         </GlassCard>
+                    </Animated.View>
 
-                        <View style={styles.footer}>
-                            <Text style={styles.footerText}>New here? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                                <Text style={styles.linkText}>Create ID</Text>
-                            </TouchableOpacity>
-                        </View>
+                    {/* Footer with staggered animation */}
+                    <Animated.View style={[styles.footer, footerStyle]}>
+                        <Text style={styles.footerText}>New here? </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                            <Text style={styles.linkText}>Create ID</Text>
+                        </TouchableOpacity>
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -234,23 +380,55 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: 24,
     },
-    content: {
-        width: '100%',
+    // Logo Styles
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    logoBadge: {
+        width: 80,
+        height: 80,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.5,
+        shadowRadius: 20,
+        elevation: 15,
+    },
+    logoText: {
+        fontSize: 32,
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 2,
+    },
+    logoGlow: {
+        position: 'absolute',
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: Colors.primary,
+        opacity: 0.15,
+        zIndex: -1,
     },
     header: {
-        marginBottom: 40,
+        marginBottom: 24,
+        alignItems: 'center',
     },
     title: {
-        fontSize: 36,
+        fontSize: 32,
         fontWeight: '800',
         color: '#fff',
         marginBottom: 8,
         letterSpacing: 0.5,
+        textAlign: 'center',
     },
     subtitle: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.7)',
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.6)',
         fontWeight: '400',
+        textAlign: 'center',
     },
     card: {
         padding: 24,
@@ -266,29 +444,25 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     label: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '700',
         color: 'rgba(255,255,255,0.5)',
-        letterSpacing: 1,
+        letterSpacing: 1.5,
         marginLeft: 4,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.2)',
+        backgroundColor: 'rgba(0,0,0,0.25)',
         borderRadius: 16,
         paddingHorizontal: 16,
-        height: 60,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    icon: {
-        marginRight: 12,
+        height: 58,
+        borderWidth: 1.5,
     },
     input: {
         flex: 1,
         color: '#fff',
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '500',
     },
     rememberRow: {
@@ -325,26 +499,6 @@ const styles = StyleSheet.create({
         color: Colors.secondary,
         fontSize: 12,
     },
-    loginButton: {
-        height: 60,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 10,
-        shadowColor: Colors.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
-        elevation: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    loginButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-    },
     footer: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -370,3 +524,4 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+
