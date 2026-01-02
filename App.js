@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
@@ -620,23 +621,25 @@ export default function App() {
 
   // Home Screen (Student Dashboard)
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <StudentDashboard
-        onStartScanning={startScanner}
-        onViewHistory={() => setShowHistory(true)}
-        onSignOut={() => signOut(auth)}
-      />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <StudentDashboard
+          onStartScanning={startScanner}
+          onViewHistory={() => setShowHistory(true)}
+          onSignOut={() => signOut(auth)}
+        />
 
-      <UpdateModal
-        visible={showUpdateModal}
-        updateInfo={updateInfo}
-        onUpdate={handleUpdate}
-        onCancel={() => setShowUpdateModal(false)}
-        isDownloading={isDownloading}
-        progress={downloadProgress}
-      />
-    </SafeAreaView>
+        <UpdateModal
+          visible={showUpdateModal}
+          updateInfo={updateInfo}
+          onUpdate={handleUpdate}
+          onCancel={() => setShowUpdateModal(false)}
+          isDownloading={isDownloading}
+          progress={downloadProgress}
+        />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

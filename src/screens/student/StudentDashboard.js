@@ -1,141 +1,130 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Switch, ActivityIndicator, Alert, Platform, Easing, LayoutAnimation, PanResponder, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import SharedGroupPreferences from 'react-native-shared-group-preferences';
-import { doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withTiming,
+    runOnJS,
+    interpolate,
+    Extrapolate
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+
 import GlassBackground from '../../components/glass/GlassBackground';
 import GlassCard from '../../components/glass/GlassCard';
 import PassCard from '../../components/cards/PassCard';
-import FluidButton from '../../components/buttons/FluidButton';
+import StopSelectionModal from '../../components/modals/StopSelectionModal';
 import { Colors } from '../../constants/colors';
-import { BusMapView, useBusLocation } from '../../features/location';
+import { useBusLocation } from '../../features/location';
 import ChangePasswordModal from '../../screens/auth/ChangePasswordModal';
 
-const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigation }) => {
+const { width, height } = Dimensions.get('window');
+const CARD_HEIGHT = (width - 48) / 1.586;
+const HIDDEN_OFFSET = -CARD_HEIGHT + 80; // Show 80px hint
+const REVEALED_OFFSET = 120; // Position when pulled down
+
+const StudentDashboard = ({ onSignOut }) => {
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [morningOptIn, setMorningOptIn] = useState(true);
     const [eveningOptIn, setEveningOptIn] = useState(true);
-    const [isMapExpanded, setIsMapExpanded] = useState(false);
 
-    // Swipe-to-Reveal Logic
-    const [isCardRevealed, setIsCardRevealed] = useState(false);
-    const [scrollEnabled, setScrollEnabled] = useState(true);
-    const pan = useRef(new Animated.ValueXY()).current;
-    const { height } = Dimensions.get('window');
+    // Stop Selection
+    const [showStopModal, setShowStopModal] = useState(false);
+    const [myStop, setMyStop] = useState('');
 
-    const panResponder = useRef(
-        PanResponder.create({
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                // Only enable if pulling down, not revealed, and roughly vertical
-                return !isCardRevealed && gestureState.dy > 10 && Math.abs(gestureState.dx) < 20;
-            },
-            onPanResponderGrant: () => {
-                setScrollEnabled(false);
-            },
-            onPanResponderMove: Animated.event(
-                [null, { dy: pan.y }],
-                { useNativeDriver: false }
-            ),
-            onPanResponderRelease: (_, gestureState) => {
-                setScrollEnabled(true);
-                if (gestureState.dy > 120) { // Threshold to reveal
-                    setIsCardRevealed(true);
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Animated.spring(pan, {
-                        toValue: { x: 0, y: height * 0.25 }, // Center roughly
-                        useNativeDriver: true,
-                        tension: 50,
-                        friction: 7
-                    }).start();
-                } else {
-                    // Reset
-                    Animated.spring(pan, {
-                        toValue: { x: 0, y: 0 },
-                        useNativeDriver: true
-                    }).start();
-                }
-            }
+    // Animation Values
+    const translateY = useSharedValue(HIDDEN_OFFSET);
+    const context = useSharedValue({ y: 0 });
+
+    const cardStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: translateY.value }],
+        };
+    });
+
+    const backdropStyle = useAnimatedStyle(() => {
+        const opacity = interpolate(
+            translateY.value,
+            [HIDDEN_OFFSET, REVEALED_OFFSET],
+            [0, 0.8],
+            Extrapolate.CLAMP
+        );
+        return {
+            opacity,
+            zIndex: translateY.value > HIDDEN_OFFSET + 10 ? 90 : -1,
+        };
+    });
+
+    // Gesture Handler
+    const gesture = Gesture.Pan()
+        .onStart(() => {
+            context.value = { y: translateY.value };
+            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
         })
-    ).current;
-
-    const dismissCard = () => {
-        setIsCardRevealed(false);
-        Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true
-        }).start();
-    };
-
-    // Hybrid bus location logic
-    const {
-        location: busLocation,
-        status: busStatus,
-        isLive,
-        nextStop,
-        eta,
-        isOperating,
-        routePath
-    } = useBusLocation();
-
-    // Pulse Animation for Live Badge
-    const pulseAnim = useRef(new Animated.Value(1)).current;
+        .onUpdate((event) => {
+            translateY.value = event.translationY + context.value.y;
+        })
+        .onEnd(() => {
+            if (translateY.value > HIDDEN_OFFSET + 100) {
+                // Reveal
+                translateY.value = withSpring(REVEALED_OFFSET, { damping: 15 });
+                runOnJS(Haptics.notificationAsync)(Haptics.NotificationFeedbackType.Success);
+            } else {
+                // Hide
+                translateY.value = withSpring(HIDDEN_OFFSET, { damping: 15 });
+            }
+        });
 
     useEffect(() => {
-        if (isLive) {
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(pulseAnim, {
-                        toValue: 0.6,
-                        duration: 800,
-                        useNativeDriver: true,
-                        easing: Easing.inOut(Easing.ease)
-                    }),
-                    Animated.timing(pulseAnim, {
-                        toValue: 1,
-                        duration: 800,
-                        useNativeDriver: true,
-                        easing: Easing.inOut(Easing.ease)
-                    })
-                ])
-            ).start();
-        }
-    }, [isLive]);
+        loadStopPreference();
+    }, []);
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const APP_GROUP = 'WidgetPrefs';
-
-    const updateWidget = async (morning, evening) => {
-        if (Platform.OS !== 'android') return;
+    const loadStopPreference = async () => {
         try {
-            const widgetData = { morning, evening };
-            await SharedGroupPreferences.setItem('optin_data', JSON.stringify(widgetData), APP_GROUP);
-        } catch (error) {
-            console.log('Widget update error:', error);
+            const savedStop = await AsyncStorage.getItem('user_boarding_stop');
+            if (!savedStop) {
+                setShowStopModal(true);
+            } else {
+                setMyStop(savedStop);
+            }
+        } catch (e) {
+            console.log('Error loading stop:', e);
+        }
+    };
+
+    const handleSaveStop = async (stop) => {
+        try {
+            await AsyncStorage.setItem('user_boarding_stop', stop);
+            setMyStop(stop);
+            setShowStopModal(false);
+            Alert.alert('Stop Saved', `Your stop "${stop}" has been saved.`);
+        } catch (e) {
+            Alert.alert('Error', 'Failed to save stop.');
         }
     };
 
     useEffect(() => {
         if (!auth.currentUser) return;
 
-        // Listen to user profile
         const unsubUser = onSnapshot(doc(db, 'users', auth.currentUser.uid), (doc) => {
             setUserData(doc.data());
             setLoading(false);
         });
 
-        // Listen to today's opt-in status
+        const todayStr = new Date().toISOString().split('T')[0];
         const unsubOptIn = onSnapshot(doc(db, 'optins', `${auth.currentUser.uid}_${todayStr}`), (doc) => {
             if (doc.exists()) {
                 const data = doc.data();
-                setMorningOptIn(data.morning !== undefined ? data.morning : true);
-                setEveningOptIn(data.evening !== undefined ? data.evening : true);
-                updateWidget(
-                    data.morning !== undefined ? data.morning : true,
-                    data.evening !== undefined ? data.evening : true
-                );
+                setMorningOptIn(data.morning ?? true);
+                setEveningOptIn(data.evening ?? true);
             }
         });
 
@@ -148,31 +137,57 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
     const toggleOptIn = async (trip, value) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         try {
+            const todayStr = new Date().toISOString().split('T')[0];
             const optInRef = doc(db, 'optins', `${auth.currentUser.uid}_${todayStr}`);
-            const updateData = {
+            await setDoc(optInRef, {
                 userId: auth.currentUser.uid,
                 userName: userData?.name || 'Student',
                 date: todayStr,
                 [trip]: value,
                 updatedAt: new Date().toISOString(),
                 busId: userData?.busId || 'unassigned',
-                stopId: userData?.stopId || 'unassigned'
-            };
+                stopId: myStop || userData?.stopId || 'unassigned' // Use saved stop
+            }, { merge: true });
 
-            await setDoc(optInRef, updateData, { merge: true });
-
-            const newMorning = trip === 'morning' ? value : morningOptIn;
-            const newEvening = trip === 'evening' ? value : eveningOptIn;
-            updateWidget(newMorning, newEvening);
+            if (Platform.OS === 'android') {
+                SharedGroupPreferences.setItem('optin_data', JSON.stringify({
+                    morning: trip === 'morning' ? value : morningOptIn,
+                    evening: trip === 'evening' ? value : eveningOptIn
+                }), 'WidgetPrefs').catch(() => { });
+            }
         } catch (error) {
-            console.error('Error updating opt-in:', error);
             Alert.alert('Error', 'Failed to update boarding status.');
         }
     };
 
-    const toggleMap = () => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setIsMapExpanded(!isMapExpanded);
+    const handleUnlink = async () => {
+        Alert.alert(
+            "Unlink Pass",
+            "Are you sure you want to remove this pass? You will need to scan your code again.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Unlink",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const userRef = doc(db, 'users', auth.currentUser.uid);
+                            await updateDoc(userRef, {
+                                busId: null,
+                                stopId: null
+                            });
+                            // Also clear local stop preference
+                            await AsyncStorage.removeItem('user_boarding_stop');
+                            setMyStop('');
+                            setUserData(prev => ({ ...prev, busId: null }));
+                            Alert.alert("Pass Unlinked", "Please scan your QR code to link again.");
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to unlink pass.");
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     if (loading) {
@@ -185,196 +200,158 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
         );
     }
 
-    return (
-        <GlassBackground>
-            <ScrollView
-                contentContainerStyle={styles.scrollContainer}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={scrollEnabled}
-            >
-
-                {/* 1. Header - Modern & Minimal */}
-                <View style={styles.header}>
-                    <View style={styles.headerLeft}>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>
-                                {userData?.name ? userData.name.charAt(0).toUpperCase() : 'S'}
-                            </Text>
-                        </View>
+    // --- CASE 1: NO PASS LINKED (NANO BANANA EMPTY STATE) ---
+    if (!userData?.busId) {
+        return (
+            <GlassBackground>
+                <ScrollView contentContainerStyle={styles.emptyStateContainer}>
+                    <View style={styles.header}>
                         <View>
-                            <Text style={styles.greeting}>Hello,</Text>
+                            <Text style={styles.greeting}>WELCOME</Text>
                             <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
                         </View>
-                    </View>
-                    <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
-                        <Ionicons name="settings-outline" size={22} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-
-                {/* 2. Hero Card Section */}
-                <View style={[styles.heroSection, { zIndex: 100 }]}>
-                    {/* Backdrop Overlay when revealed */}
-                    {isCardRevealed && (
-                        <TouchableOpacity
-                            style={styles.backdrop}
-                            activeOpacity={1}
-                            onPress={dismissCard}
-                        >
-                            <View style={styles.backdropBlur} />
+                        <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
+                            <Ionicons name="log-out-outline" size={22} color="#fff" />
                         </TouchableOpacity>
-                    )}
-
-                    <Animated.View
-                        style={{
-                            transform: [{ translateY: pan.y }, { scale: isCardRevealed ? 1.1 : 1 }],
-                            zIndex: 101
-                        }}
-                        {...panResponder.panHandlers}
-                    >
-                        <PassCard
-                            userData={userData}
-                            flipped={isCardRevealed}
-                            onFlip={(flipped) => {
-                                // Manual flip logic if needed, but we mostly control via reveal state
-                                if (!isCardRevealed && flipped) {
-                                    // If user taps to flip while not revealed, maybe trigger reveal?
-                                    // For now, let's keep it simple: manual flip only works if allowed
-                                }
-                            }}
-                        />
-                    </Animated.View>
-
-                    {/* Status Pill below card */}
-                    <Animated.View style={[styles.statusPill, { opacity: isCardRevealed ? 0 : 1 }]}>
-                        <View style={[styles.statusDot, { backgroundColor: Colors.success }]} />
-                        <Text style={styles.statusText}>Active • Expires Dec 2026</Text>
-                    </Animated.View>
-                </View>
-
-                {/* 3. Live Bus Status (Compact ETA Pill) */}
-                {userData?.busId && (
-                    <TouchableOpacity
-                        style={styles.etaContainer}
-                        activeOpacity={0.9}
-                        onPress={toggleMap}
-                    >
-                        <GlassCard intensity={40} style={styles.etaCard}>
-                            <View style={styles.etaHeader}>
-                                <View style={styles.etaLeft}>
-                                    <View style={[styles.iconBox, { backgroundColor: isLive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.1)' }]}>
-                                        <Ionicons name="bus" size={20} color={isLive ? Colors.success : '#fff'} />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.etaTitle}>
-                                            {isOperating ? (nextStop ? `Next: ${nextStop.name}` : 'En Route') : 'Bus Not Operating'}
-                                        </Text>
-                                        <Text style={styles.etaSubtitle}>
-                                            {isOperating ? (eta ? `Arriving in ${eta}` : 'Calculating ETA...') : 'Schedule: 7:00 AM - 9:00 PM'}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <Ionicons name={isMapExpanded ? "chevron-up" : "chevron-down"} size={20} color="rgba(255,255,255,0.5)" />
-                            </View>
-
-                            {/* Expanded Map View */}
-                            {isMapExpanded && (
-                                <View style={styles.mapContainer}>
-                                    {busLocation ? (
-                                        <BusMapView
-                                            isDriver={false}
-                                            otherBuses={[{
-                                                id: 'driver',
-                                                latitude: busLocation.latitude,
-                                                longitude: busLocation.longitude
-                                            }]}
-                                            busRoute={{ coordinates: routePath }}
-                                            style={styles.mapView}
-                                        />
-                                    ) : (
-                                        <View style={styles.mapOffline}>
-                                            <Ionicons name="cloud-offline-outline" size={24} color={Colors.textSecondary} />
-                                            <Text style={styles.mapOfflineText}>Live location unavailable</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            )}
-                        </GlassCard>
-                    </TouchableOpacity>
-                )}
-
-                {/* 4. Quick Actions Grid */}
-                <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={styles.actionBtn} onPress={onStartScanning}>
-                        <GlassCard style={styles.actionBtnCard} intensity={25}>
-                            <Ionicons name="scan" size={24} color={Colors.primary} />
-                            <Text style={styles.actionBtnText}>Scan QR</Text>
-                        </GlassCard>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.actionBtn} onPress={onViewHistory}>
-                        <GlassCard style={styles.actionBtnCard} intensity={25}>
-                            <Ionicons name="time-outline" size={24} color={Colors.accent} />
-                            <Text style={styles.actionBtnText}>History</Text>
-                        </GlassCard>
-                    </TouchableOpacity>
-                </View>
-
-                {/* 5. Boarding Opt-In (Compact Toggles) */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Today's Boarding</Text>
-                    <View style={styles.optInGrid}>
-                        {/* Morning Toggle */}
-                        <GlassCard style={styles.optInPill} intensity={20}>
-                            <View style={styles.optInContent}>
-                                <Ionicons name="sunny" size={20} color={morningOptIn ? Colors.accent : 'rgba(255,255,255,0.3)'} />
-                                <Text style={[styles.optInLabel, morningOptIn && { color: '#fff', fontWeight: 'bold' }]}>Morning</Text>
-                                <Switch
-                                    value={morningOptIn}
-                                    onValueChange={(val) => {
-                                        setMorningOptIn(val);
-                                        toggleOptIn('morning', val);
-                                    }}
-                                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
-                                    thumbColor={'#fff'}
-                                    style={{ transform: [{ scale: 0.8 }] }}
-                                />
-                            </View>
-                        </GlassCard>
-
-                        {/* Evening Toggle */}
-                        <GlassCard style={styles.optInPill} intensity={20}>
-                            <View style={styles.optInContent}>
-                                <Ionicons name="moon" size={18} color={eveningOptIn ? Colors.primaryLight : 'rgba(255,255,255,0.3)'} />
-                                <Text style={[styles.optInLabel, eveningOptIn && { color: '#fff', fontWeight: 'bold' }]}>Evening</Text>
-                                <Switch
-                                    value={eveningOptIn}
-                                    onValueChange={(val) => {
-                                        setEveningOptIn(val);
-                                        toggleOptIn('evening', val);
-                                    }}
-                                    trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
-                                    thumbColor={'#fff'}
-                                    style={{ transform: [{ scale: 0.8 }] }}
-                                />
-                            </View>
-                        </GlassCard>
                     </View>
-                </View>
 
-                {/* Setup Prompt (if needed) */}
-                {!userData?.busId && (
-                    <View style={{ marginTop: 20 }}>
-                        <FluidButton
-                            title="Link Your Bus"
+                    <View style={styles.nanoContainer}>
+                        <View style={styles.nanoIconRing}>
+                            <Ionicons name="qr-code-outline" size={64} color="#FACC15" />
+                        </View>
+                        <Text style={styles.nanoTitle}>NO PASS DETECTED</Text>
+                        <Text style={styles.nanoSubtitle}>
+                            Link your physical Baghirathi pass to enable digital access.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.nanoButton}
                             onPress={onStartScanning}
-                            type="primary"
-                            icon="link"
-                        />
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.nanoButtonText}>LINK PASS</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#000" />
+                        </TouchableOpacity>
                     </View>
-                )}
+                </ScrollView>
+            </GlassBackground>
+        );
+    }
+
+    // --- CASE 2: PASS LINKED (DASHBOARD) ---
+    return (
+        <GlassBackground>
+            {/* Backdrop for Card */}
+            <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
+
+            {/* Inverted Card Container (GESTURE ENABLED) */}
+            <View style={{ zIndex: 100 }}>
+                <GestureDetector gesture={gesture}>
+                    <Animated.View style={[styles.cardContainer, cardStyle]}>
+                        <PassCard userData={userData} />
+
+                        {/* Pull Handle */}
+                        <View style={styles.pullHandleContainer}>
+                            <View style={styles.pullHandle} />
+                            <Text style={styles.pullText}>Pull for Pass</Text>
+                            <Ionicons name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
+                        </View>
+                    </Animated.View>
+                </GestureDetector>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.scrollContainer}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.greeting}>Good Morning,</Text>
+                        <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
+                        <TouchableOpacity onPress={() => setShowStopModal(true)}>
+                            <Text style={styles.currentStop}>
+                                <Ionicons name="location" size={12} /> {myStop || 'Select Stop'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {/* Unlink Button */}
+                        <TouchableOpacity onPress={handleUnlink} style={styles.settingsBtn}>
+                            <Ionicons name="unlink-outline" size={22} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
+                            <Ionicons name="log-out-outline" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Boarding Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>TODAY'S SCHEDULE</Text>
+
+                    {/* Morning Card */}
+                    <GlassCard style={styles.scheduleCard} intensity={25}>
+                        <View style={styles.scheduleRow}>
+                            <View style={styles.scheduleInfo}>
+                                <View style={[styles.iconBox, { backgroundColor: 'rgba(251, 146, 60, 0.2)' }]}>
+                                    <Ionicons name="sunny" size={20} color="#fb923c" />
+                                </View>
+                                <View>
+                                    <Text style={styles.scheduleLabel}>Morning Pickup</Text>
+                                    <Text style={styles.scheduleTime}>07:30 AM • Bus {userData?.busId || '---'}</Text>
+                                </View>
+                            </View>
+                            <Switch
+                                value={morningOptIn}
+                                onValueChange={(val) => {
+                                    setMorningOptIn(val);
+                                    toggleOptIn('morning', val);
+                                }}
+                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                thumbColor={'#fff'}
+                            />
+                        </View>
+                    </GlassCard>
+
+                    {/* Evening Card */}
+                    <GlassCard style={[styles.scheduleCard, { marginTop: 12 }]} intensity={25}>
+                        <View style={styles.scheduleRow}>
+                            <View style={styles.scheduleInfo}>
+                                <View style={[styles.iconBox, { backgroundColor: 'rgba(147, 51, 234, 0.2)' }]}>
+                                    <Ionicons name="moon" size={18} color="#c084fc" />
+                                </View>
+                                <View>
+                                    <Text style={styles.scheduleLabel}>Evening Drop-off</Text>
+                                    <Text style={styles.scheduleTime}>03:45 PM • {myStop || 'Campus'}</Text>
+                                </View>
+                            </View>
+                            <Switch
+                                value={eveningOptIn}
+                                onValueChange={(val) => {
+                                    setEveningOptIn(val);
+                                    toggleOptIn('evening', val);
+                                }}
+                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                thumbColor={'#fff'}
+                            />
+                        </View>
+                    </GlassCard>
+                </View>
+
+                {/* Info Text */}
+                <View style={styles.infoBox}>
+                    <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.4)" />
+                    <Text style={styles.infoText}>
+                        Swiping your pass is not required. Just confirm your status above.
+                    </Text>
+                </View>
 
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            <StopSelectionModal
+                visible={showStopModal}
+                onSelect={handleSaveStop}
+                initialStop={myStop}
+            />
 
             <ChangePasswordModal
                 visible={userData?.requiresPasswordChange === true}
@@ -385,52 +362,131 @@ const StudentDashboard = ({ onStartScanning, onViewHistory, onSignOut, navigatio
 };
 
 const styles = StyleSheet.create({
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+    cardContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 24,
+        right: 24,
+        alignItems: 'center',
+        paddingBottom: 20,
+    },
+    pullHandleContainer: {
+        alignItems: 'center',
+        marginTop: 10,
+        gap: 4,
+    },
+    pullHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        borderRadius: 2,
+    },
+    pullText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+    },
     scrollContainer: {
         padding: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
+        paddingTop: 140, // Space for the card hint
     },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    // Header
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
+        alignItems: 'flex-start',
+        marginBottom: 32,
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
+    optInLabel: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '500',
+        flex: 1,
+        marginLeft: 8,
     },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: Colors.primary,
+    // NANO BANANA STYLES
+    emptyStateContainer: {
+        flexGrow: 1,
+        padding: 24,
+        paddingTop: 60,
+    },
+    nanoContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.2)',
+        paddingVertical: 40,
+        gap: 20,
     },
-    avatarText: {
+    nanoIconRing: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(250, 204, 21, 0.1)', // Yellow/10
+        borderWidth: 1,
+        borderColor: 'rgba(250, 204, 21, 0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+        shadowColor: '#FACC15',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+    },
+    nanoTitle: {
+        fontSize: 20,
+        fontWeight: '800',
         color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 18,
+        letterSpacing: 2,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    nanoSubtitle: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.5)',
+        textAlign: 'center',
+        maxWidth: '80%',
+        lineHeight: 22,
+    },
+    nanoButton: {
+        marginTop: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FACC15',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 30,
+        gap: 12,
+        shadowColor: '#FACC15',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    nanoButtonText: {
+        color: '#000',
+        fontSize: 14,
+        fontWeight: '800',
+        letterSpacing: 1,
     },
     greeting: {
-        fontSize: 12,
+        fontSize: 14,
         color: 'rgba(255,255,255,0.6)',
-        fontWeight: '600',
+        marginBottom: 4,
     },
     userName: {
-        fontSize: 18,
-        color: '#fff',
+        fontSize: 24,
         fontWeight: '700',
+        color: '#fff',
+        marginBottom: 4,
+    },
+    currentStop: {
+        fontSize: 12,
+        color: Colors.accent,
+        fontWeight: '600',
     },
     settingsBtn: {
         width: 40,
@@ -440,151 +496,58 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    backdrop: {
-        position: 'absolute',
-        top: -1000,
-        left: -500,
-        right: -500,
-        bottom: -1000,
-        zIndex: 90,
+    section: { marginBottom: 24 },
+    sectionTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.4)',
+        marginBottom: 16,
+        letterSpacing: 1,
     },
-    backdropBlur: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-    },
-    // Hero Section
-    heroSection: {
-        alignItems: 'center',
-        marginBottom: 32,
-    },
-    statusPill: {
-        marginTop: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        gap: 6,
-    },
-    statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    statusText: {
-        fontSize: 11,
-        color: 'rgba(255,255,255,0.7)',
-        fontWeight: '600',
-    },
-    // ETA Bar
-    etaContainer: {
-        marginBottom: 24,
-    },
-    etaCard: {
-        padding: 0,
-        borderRadius: 16,
-    },
-    etaHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+    scheduleCard: {
         padding: 16,
+        borderRadius: 20,
     },
-    etaLeft: {
+    scheduleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        justifyContent: 'space-between',
+    },
+    scheduleInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
     },
     iconBox: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    etaTitle: {
+    scheduleLabel: {
         fontSize: 14,
         color: '#fff',
-        fontWeight: '700',
-    },
-    etaSubtitle: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    mapContainer: {
-        height: 200,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
-    },
-    mapView: {
-        flex: 1,
-    },
-    mapOffline: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 8,
-    },
-    mapOfflineText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 12,
-    },
-    // Actions Grid
-    actionsGrid: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 32,
-    },
-    actionBtn: {
-        flex: 1,
-    },
-    actionBtnCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        padding: 16,
-        height: 60,
-    },
-    actionBtnText: {
-        color: '#fff',
         fontWeight: '600',
-        fontSize: 15,
+        marginBottom: 2,
     },
-    // Section
-    section: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '700',
+    scheduleTime: {
+        fontSize: 12,
         color: 'rgba(255,255,255,0.5)',
-        letterSpacing: 1,
-        marginBottom: 12,
-        textTransform: 'uppercase',
     },
-    optInGrid: {
+    infoBox: {
         flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
         gap: 12,
     },
-    optInPill: {
+    infoText: {
         flex: 1,
-        padding: 0,
-    },
-    optInContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 12,
-    },
-    optInLabel: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
-        fontWeight: '500',
-        flex: 1,
-        marginLeft: 8,
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.5)',
+        lineHeight: 18,
     },
 });
 
