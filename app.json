@@ -2,11 +2,11 @@
   "expo": {
     "name": "R8",
     "slug": "qr-card-creator",
-    "version": "1.8.9",
+    "version": "1.8.10",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "description": "Scan QR codes and create beautiful digital QR cards. Save, share, and manage your QR codes with ease.",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -30,7 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.qrcardcreator.app",
-      "versionCode": 16,
+      "versionCode": 17,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
