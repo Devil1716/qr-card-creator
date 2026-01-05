@@ -12,6 +12,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
+      NODE_ENV: "production"
       NODE_OPTIONS: "--max_old_space_size=4096"
       GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8"
     
