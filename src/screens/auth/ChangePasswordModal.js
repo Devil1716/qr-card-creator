@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ACTIVITY_INDICATOR_Type, ActivityIndicator, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +45,7 @@ const ChangePasswordModal = ({ visible, onSuccess }) => {
 
         try {
             const user = auth.currentUser;
-            if (!user || not_email(user.email)) return;
+            if (!user || !user.email) return;
 
             // 1. Re-authenticate
             const credential = EmailAuthProvider.credential(user.email, currentPassword);
@@ -77,8 +77,6 @@ const ChangePasswordModal = ({ visible, onSuccess }) => {
         }
     };
 
-    // Helper to check email validity simply
-    const not_email = (email) => !email;
 
     return (
         <Modal
