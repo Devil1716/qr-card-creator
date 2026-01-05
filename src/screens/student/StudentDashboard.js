@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, Dimensions, Platform, Animated as RNAnimated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-// Safe Import for Expo Go (where native module might be missing)
-let SharedGroupPreferences;
-try {
-    SharedGroupPreferences = require('react-native-shared-group-preferences').default;
-} catch (e) {
-    console.log("SharedGroupPreferences module not found (Expo Go mode)");
-}
+// import MapView, { Marker } from 'react-native-maps'; // Disabled for Expo Go
+
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,19 +19,26 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import GlassBackground from '../../components/glass/GlassBackground';
-import GlassCard from '../../components/glass/GlassCard';
-import PassCard from '../../components/cards/PassCard';
+import GlassCardComponent from '../../components/glass/GlassCard';
+import PassCardComponent from '../../components/cards/PassCard';
 import StopSelectionModal from '../../components/modals/StopSelectionModal';
 import { Colors } from '../../constants/colors';
 import { useBusLocation } from '../../features/location';
 import ChangePasswordModal from '../../screens/auth/ChangePasswordModal';
 
-const { width, height } = Dimensions.get('window');
-const CARD_HEIGHT = (width - 48) / 1.586;
-const HIDDEN_OFFSET = -CARD_HEIGHT + 80; // Show 80px hint
-const REVEALED_OFFSET = 120; // Position when pulled down
+const PassCard = React.memo(PassCardComponent);
+const GlassCard = React.memo(GlassCardComponent);
 
-const StudentDashboard = ({ onSignOut }) => {
+const { width, height } = Dimensions.get('window');
+// Match PassCard.js aspect ratio (1.3)
+const CARD_HEIGHT = (width - 48) / 1.3;
+// Calculate dynamic offsets
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : 35;
+const HIDDEN_OFFSET = -CARD_HEIGHT + 85;
+// Reveal enough to show full card + some top padding.
+const REVEALED_OFFSET = CARD_HEIGHT + STATUS_BAR_HEIGHT + 20;
+
+const StudentDashboard = ({ onSignOut, onStartScanning }) => {
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [morningOptIn, setMorningOptIn] = useState(true);
@@ -46,13 +48,48 @@ const StudentDashboard = ({ onSignOut }) => {
     const [showStopModal, setShowStopModal] = useState(false);
     const [myStop, setMyStop] = useState('');
 
+    // Bus Location - MUST be called before any early returns (Rules of Hooks)
+    const { busLocation, isOnline } = useBusLocation(userData?.busId);
+
+    // Entrance Animations
+    const fadeAnim = React.useRef(new RNAnimated.Value(0)).current;
+    const slideAnim = React.useRef(new RNAnimated.Value(30)).current;
+
+    useEffect(() => {
+        RNAnimated.parallel([
+            RNAnimated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.cubic)
+            }),
+            RNAnimated.timing(slideAnim, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: true,
+                easing: Easing.out(Easing.cubic)
+            })
+        ]).start();
+    }, []);
+
     // Animation Values
     const translateY = useSharedValue(HIDDEN_OFFSET);
     const context = useSharedValue({ y: 0 });
 
     const cardStyle = useAnimatedStyle(() => {
+        // Add subtle scale effect: 0.95 when hidden -> 1.0 when revealed
+        const scale = interpolate(
+            translateY.value,
+            [HIDDEN_OFFSET, REVEALED_OFFSET],
+            [0.96, 1],
+            Extrapolate.CLAMP
+        );
+
         return {
-            transform: [{ translateY: translateY.value }],
+            transform: [
+                { translateY: translateY.value },
+                { scale: scale }
+            ],
         };
     });
 
@@ -60,7 +97,7 @@ const StudentDashboard = ({ onSignOut }) => {
         const opacity = interpolate(
             translateY.value,
             [HIDDEN_OFFSET, REVEALED_OFFSET],
-            [0, 0.8],
+            [0, 0.6], // Slightly darker backdrop
             Extrapolate.CLAMP
         );
         return {
@@ -76,16 +113,34 @@ const StudentDashboard = ({ onSignOut }) => {
             runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
         })
         .onUpdate((event) => {
-            translateY.value = event.translationY + context.value.y;
+            // Add robust resistance
+            let newValue = event.translationY + context.value.y;
+            const MAX_DRAG = REVEALED_OFFSET + 80;
+            if (newValue > MAX_DRAG) {
+                // Logarithmic resistance
+                const delta = newValue - MAX_DRAG;
+                newValue = MAX_DRAG + (10 * Math.log(delta / 10 + 1));
+            }
+            translateY.value = newValue;
         })
-        .onEnd(() => {
-            if (translateY.value > HIDDEN_OFFSET + 100) {
-                // Reveal
-                translateY.value = withSpring(REVEALED_OFFSET, { damping: 15 });
+        .onEnd((event) => {
+            // Threshold based on velocity or position
+            if (translateY.value > HIDDEN_OFFSET + 120 || event.velocityY > 500) {
+                // Reveal - High damping for NO oscillation
+                translateY.value = withSpring(REVEALED_OFFSET, {
+                    damping: 20,
+                    stiffness: 90,
+                    mass: 0.6,
+                    overshootClamping: true // CRITICAL: Prevents wiggle/overshoot
+                });
                 runOnJS(Haptics.notificationAsync)(Haptics.NotificationFeedbackType.Success);
             } else {
-                // Hide
-                translateY.value = withSpring(HIDDEN_OFFSET, { damping: 15 });
+                // Hide with balanced snap
+                translateY.value = withSpring(HIDDEN_OFFSET, {
+                    damping: 24,
+                    stiffness: 200,
+                    overshootClamping: false
+                });
             }
         });
 
@@ -117,12 +172,20 @@ const StudentDashboard = ({ onSignOut }) => {
         }
     };
 
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+
     useEffect(() => {
         if (!auth.currentUser) return;
 
         const unsubUser = onSnapshot(doc(db, 'users', auth.currentUser.uid), (doc) => {
-            setUserData(doc.data());
+            const data = doc.data();
+            setUserData(data);
             setLoading(false);
+            if (data?.requiresPasswordChange) {
+                setShowPasswordModal(true);
+            } else {
+                setShowPasswordModal(false);
+            }
         });
 
         const todayStr = new Date().toISOString().split('T')[0];
@@ -140,6 +203,17 @@ const StudentDashboard = ({ onSignOut }) => {
         };
     }, []);
 
+    // AUTO-SCANNER TRIGGER (New Account / Reset Flow)
+    // Triggers when: password change NOT required AND no bus linked
+    useEffect(() => {
+        if (!loading && userData && !userData.requiresPasswordChange && !userData.busId) {
+            const timeout = setTimeout(() => {
+                onStartScanning();
+            }, 500); // 0.5s - fast transition
+            return () => clearTimeout(timeout);
+        }
+    }, [userData, loading, onStartScanning]);
+
     const toggleOptIn = async (trip, value) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         try {
@@ -155,16 +229,10 @@ const StudentDashboard = ({ onSignOut }) => {
                 stopId: myStop || userData?.stopId || 'unassigned' // Use saved stop
             }, { merge: true });
 
-            if (Platform.OS === 'android' && SharedGroupPreferences) {
-                try {
-                    await SharedGroupPreferences.setItem('optin_data', JSON.stringify({
-                        morning: trip === 'morning' ? value : morningOptIn,
-                        evening: trip === 'evening' ? value : eveningOptIn
-                    }), 'WidgetPrefs');
-                } catch (e) {
-                    console.log("Widget update failed (or not supported)");
-                }
-            }
+            // Widget update removed for Expo Go compatibility
+            // if (Platform.OS === 'android' && SharedGroupPreferences) {
+            //    ...
+            // }
         } catch (error) {
             Alert.alert('Error', 'Failed to update boarding status.');
         }
@@ -227,7 +295,7 @@ const StudentDashboard = ({ onSignOut }) => {
 
                     <View style={styles.nanoContainer}>
                         <View style={styles.nanoIconRing}>
-                            <Ionicons name="qr-code-outline" size={64} color="#FACC15" />
+                            <Ionicons name="qr-code-outline" size={56} color="rgba(255,255,255,0.9)" />
                         </View>
                         <Text style={styles.nanoTitle}>NO PASS DETECTED</Text>
                         <Text style={styles.nanoSubtitle}>
@@ -237,10 +305,10 @@ const StudentDashboard = ({ onSignOut }) => {
                         <TouchableOpacity
                             style={styles.nanoButton}
                             onPress={onStartScanning}
-                            activeOpacity={0.8}
+                            activeOpacity={0.85}
                         >
+                            <Ionicons name="scan-outline" size={20} color="#111" />
                             <Text style={styles.nanoButtonText}>LINK PASS</Text>
-                            <Ionicons name="arrow-forward" size={20} color="#000" />
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -270,91 +338,89 @@ const StudentDashboard = ({ onSignOut }) => {
                 </GestureDetector>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContainer}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.greeting}>Live Update Active! ⚡</Text>
-                        <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
-                        <TouchableOpacity onPress={() => setShowStopModal(true)}>
-                            <Text style={styles.currentStop}>
-                                <Ionicons name="location" size={12} /> {myStop || 'Select Stop'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                        {/* Unlink Button */}
-                        <TouchableOpacity onPress={handleUnlink} style={styles.settingsBtn}>
-                            <Ionicons name="unlink-outline" size={22} color="#fff" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
-                            <Ionicons name="log-out-outline" size={22} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* Boarding Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>TODAY'S SCHEDULE</Text>
-
-                    {/* Morning Card */}
-                    <GlassCard style={styles.scheduleCard} intensity={25}>
-                        <View style={styles.scheduleRow}>
-                            <View style={styles.scheduleInfo}>
-                                <View style={[styles.iconBox, { backgroundColor: 'rgba(251, 146, 60, 0.2)' }]}>
-                                    <Ionicons name="sunny" size={20} color="#fb923c" />
-                                </View>
-                                <View>
-                                    <Text style={styles.scheduleLabel}>Morning Pickup</Text>
-                                    <Text style={styles.scheduleTime}>07:30 AM • Bus {userData?.busId || '---'}</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={morningOptIn}
-                                onValueChange={(val) => {
-                                    setMorningOptIn(val);
-                                    toggleOptIn('morning', val);
-                                }}
-                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
-                                thumbColor={'#fff'}
-                            />
+            <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+                <RNAnimated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <View>
+                            <Text style={styles.greeting}>Live Update Active! ⚡</Text>
+                            <Text style={styles.userName}>{userData?.name?.split(' ')[0] || 'Student'}</Text>
+                            <TouchableOpacity onPress={() => setShowStopModal(true)}>
+                                <Text style={styles.currentStop}>
+                                    <Ionicons name="location" size={12} /> {myStop || 'Select Stop'}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-                    </GlassCard>
-
-                    {/* Evening Card */}
-                    <GlassCard style={[styles.scheduleCard, { marginTop: 12 }]} intensity={25}>
-                        <View style={styles.scheduleRow}>
-                            <View style={styles.scheduleInfo}>
-                                <View style={[styles.iconBox, { backgroundColor: 'rgba(147, 51, 234, 0.2)' }]}>
-                                    <Ionicons name="moon" size={18} color="#c084fc" />
-                                </View>
-                                <View>
-                                    <Text style={styles.scheduleLabel}>Evening Drop-off</Text>
-                                    <Text style={styles.scheduleTime}>03:45 PM • {myStop || 'Campus'}</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={eveningOptIn}
-                                onValueChange={(val) => {
-                                    setEveningOptIn(val);
-                                    toggleOptIn('evening', val);
-                                }}
-                                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
-                                thumbColor={'#fff'}
-                            />
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            {/* Unlink Button */}
+                            <TouchableOpacity onPress={handleUnlink} style={styles.settingsBtn}>
+                                <Ionicons name="unlink-outline" size={22} color="#fff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={onSignOut} style={styles.settingsBtn}>
+                                <Ionicons name="log-out-outline" size={22} color="#fff" />
+                            </TouchableOpacity>
                         </View>
-                    </GlassCard>
-                </View>
+                    </View>
 
-                {/* Info Text */}
-                <View style={styles.infoBox}>
-                    <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.4)" />
-                    <Text style={styles.infoText}>
-                        Swiping your pass is not required. Just confirm your status above.
-                    </Text>
-                </View>
+                    {/* Boarding Section */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>TODAY'S SCHEDULE</Text>
 
-                <View style={{ height: 100 }} />
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            {/* Morning Card - Solid iOS Style */}
+                            <View style={styles.solidCard}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <View style={[styles.iconBox, { backgroundColor: 'rgba(251, 146, 60, 0.15)' }]}>
+                                        <Ionicons name="sunny" size={20} color="#fb923c" />
+                                    </View>
+                                    <Switch
+                                        value={morningOptIn}
+                                        onValueChange={(val) => {
+                                            setMorningOptIn(val);
+                                            toggleOptIn('morning', val);
+                                        }}
+                                        trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                        thumbColor={'#fff'}
+                                    />
+                                </View>
+                                <Text style={styles.scheduleLabel}>Morning</Text>
+                                <Text style={styles.scheduleTime}>07:30 AM</Text>
+                                <Text style={[styles.scheduleTime, { opacity: 0.5, marginTop: 4 }]}>Bus {userData?.busId?.slice(0, 6) || '---'}</Text>
+                            </View>
+
+                            {/* Evening Card - Solid iOS Style */}
+                            <View style={styles.solidCard}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <View style={[styles.iconBox, { backgroundColor: 'rgba(147, 51, 234, 0.15)' }]}>
+                                        <Ionicons name="moon" size={18} color="#c084fc" />
+                                    </View>
+                                    <Switch
+                                        value={eveningOptIn}
+                                        onValueChange={(val) => {
+                                            setEveningOptIn(val);
+                                            toggleOptIn('evening', val);
+                                        }}
+                                        trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.success }}
+                                        thumbColor={'#fff'}
+                                    />
+                                </View>
+                                <Text style={styles.scheduleLabel}>Evening</Text>
+                                <Text style={styles.scheduleTime}>03:45 PM</Text>
+                                <Text style={[styles.scheduleTime, { opacity: 0.5, marginTop: 4 }]}>{myStop ? myStop.split(',')[0] : 'Campus'}</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Info Text - Solid iOS Style */}
+                    <View style={styles.solidInfoBox}>
+                        <Ionicons name="information-circle-outline" size={18} color="rgba(255,255,255,0.35)" />
+                        <Text style={styles.infoText}>
+                            Swiping your pass is not required. Just confirm your status above.
+                        </Text>
+                    </View>
+
+                    <View style={{ height: 100 }} />
+                </RNAnimated.View>
             </ScrollView>
 
             <StopSelectionModal
@@ -364,8 +430,8 @@ const StudentDashboard = ({ onSignOut }) => {
             />
 
             <ChangePasswordModal
-                visible={userData?.requiresPasswordChange === true}
-                onSuccess={() => { }}
+                visible={showPasswordModal}
+                onSuccess={() => setShowPasswordModal(false)}
             />
         </GlassBackground>
     );
@@ -384,6 +450,9 @@ const styles = StyleSheet.create({
         right: 24,
         alignItems: 'center',
         paddingBottom: 20,
+        zIndex: 100, // CRITICAL: Ensure card sits above everything
+        elevation: 20,
+        overflow: 'visible', // CRITICAL: Allow shadow without clipping
     },
     pullHandleContainer: {
         alignItems: 'center',
@@ -436,23 +505,19 @@ const styles = StyleSheet.create({
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: 'rgba(250, 204, 21, 0.1)', // Yellow/10
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderWidth: 1,
-        borderColor: 'rgba(250, 204, 21, 0.3)',
+        borderColor: 'rgba(255, 255, 255, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 8,
-        shadowColor: '#FACC15',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.4,
-        shadowRadius: 20,
+        marginBottom: 24,
     },
     nanoTitle: {
-        fontSize: 20,
-        fontWeight: '800',
+        fontSize: 18,
+        fontWeight: '600',
         color: '#fff',
-        letterSpacing: 2,
-        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+        letterSpacing: 3,
+        textTransform: 'uppercase',
     },
     nanoSubtitle: {
         fontSize: 14,
@@ -461,20 +526,34 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
         lineHeight: 22,
     },
+    editCardBtn: {
+        position: 'absolute',
+        top: 25,
+        right: 25,
+        width: 44,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 22, // Circle
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        zIndex: 50 // Ensure on top
+    },
     nanoButton: {
-        marginTop: 20,
+        marginTop: 32,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FACC15',
+        backgroundColor: '#FFFFFF',
         paddingVertical: 16,
-        paddingHorizontal: 32,
-        borderRadius: 30,
-        gap: 12,
-        shadowColor: '#FACC15',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 10,
+        paddingHorizontal: 36,
+        borderRadius: 50,
+        gap: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 6,
     },
     nanoButtonText: {
         color: '#000',
@@ -518,6 +597,12 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 20,
     },
+    scheduleGridCard: {
+        flex: 1,
+        padding: 16,
+        borderRadius: 20,
+        marginVertical: 0, // Override default GlassCard margin
+    },
     scheduleRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -558,6 +643,25 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: 'rgba(255,255,255,0.5)',
         lineHeight: 18,
+    },
+    // iOS Solid Card Styles
+    solidCard: {
+        flex: 1,
+        backgroundColor: '#1C1C1E', // iOS Dark Gray
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#3A3A3C', // iOS Dark Border
+    },
+    solidInfoBox: {
+        flexDirection: 'row',
+        backgroundColor: '#1C1C1E',
+        padding: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        gap: 10,
+        borderWidth: 1,
+        borderColor: '#2C2C2E',
     },
 });
 

@@ -19,9 +19,16 @@ export const useBusLocation = (busId = null) => {
 
     // Listen to live bus location from Firestore
     useEffect(() => {
+        if (!busId) {
+            setLiveLocation(null);
+            setIsLive(false);
+            return;
+        }
+
         const busQuery = query(
             collection(db, 'bus_locations'),
-            where('isActive', '==', true)
+            where('isActive', '==', true),
+            where('busId', '==', busId)
         );
 
         const unsubscribe = onSnapshot(busQuery, (snapshot) => {

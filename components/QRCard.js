@@ -2,7 +2,17 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Animated, Platform } from 'react-native';
 import PropTypes from 'prop-types';
 import QRCode from 'react-native-qrcode-svg';
-import ViewShot from 'react-native-view-shot';
+// import ViewShot from 'react-native-view-shot'; // Disabled for Expo Go
+const ViewShot = React.forwardRef(({ children, ...props }, ref) => {
+  // Mock capture method to prevent App.js crash
+  React.useImperativeHandle(ref, () => ({
+    capture: async () => {
+      console.warn("ViewShot capture disabled in Expo Go debug mode");
+      return null;
+    }
+  }));
+  return <View {...props}>{children}</View>;
+});
 import Svg, { Path, Circle } from 'react-native-svg';
 import { DeviceMotion } from 'expo-sensors';
 import { LinearGradient } from 'expo-linear-gradient';

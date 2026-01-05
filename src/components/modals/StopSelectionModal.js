@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import GlassCard from '../glass/GlassCard';
 import FluidButton from '../buttons/FluidButton';
+import routePrediction from '../../features/location/services/RoutePrediction';
 
 const StopSelectionModal = ({ visible, onSelect, initialStop = '' }) => {
     const [stopName, setStopName] = useState(initialStop);
 
-    // Initial simple list, can be expanded or fetched from API later
-    const SUGGESTED_STOPS = [
-        "Main Gate", "Hostel Block A", "Library", "Cafeteria", "Sports Complex", "City Center"
-    ];
+    // Get stops from RoutePrediction service (loaded from database/config)
+    const availableStops = useMemo(() => {
+        const stops = routePrediction.getStops();
+        return stops.map(stop => stop.name);
+    }, []);
 
     const handleSave = () => {
         if (stopName.trim().length > 0) {
@@ -53,32 +55,42 @@ const StopSelectionModal = ({ visible, onSelect, initialStop = '' }) => {
                         />
                     </View>
 
-                    <Text style={styles.label}>SUGGESTED STOPS</Text>
-                    <ScrollView style={styles.suggestionsList} horizontal={true} showsHorizontalScrollIndicator={false}>
-                        {SUGGESTED_STOPS.map((stop, index) => (
+                    <Text style={styles.label}>SELECT YOUR STOP</Text>
+                    <ScrollView style={styles.suggestionsList} showsVerticalScrollIndicator={false}>
+                        {availableStops.map((stop, index) => (
                             <TouchableOpacity
                                 key={index}
                                 style={[
-                                    styles.chip,
-                                    stopName === stop && styles.chipActive
+                                    styles.stopItem,
+                                    stopName === stop && styles.stopItemActive
                                 ]}
                                 onPress={() => setStopName(stop)}
                             >
+                                <Ionicons
+                                    name={stopName === stop ? "radio-button-on" : "radio-button-off"}
+                                    size={20}
+                                    color={stopName === stop ? Colors.primary : 'rgba(255,255,255,0.4)'}
+                                />
                                 <Text style={[
-                                    styles.chipText,
-                                    stopName === stop && styles.chipTextActive
+                                    styles.stopItemText,
+                                    stopName === stop && styles.stopItemTextActive
                                 ]}>{stop}</Text>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
 
                     <View style={styles.footer}>
-                        <FluidButton
-                            title="Confirm Stop"
+                        <TouchableOpacity
+                            style={[styles.saveButton, !stopName && styles.saveButtonDisabled]}
                             onPress={handleSave}
-                            type="primary"
-                            icon="checkmark-circle"
-                        />
+                            disabled={!stopName}
+                            activeOpacity={0.85}
+                        >
+                            <Ionicons name="checkmark-circle" size={20} color={stopName ? "#111" : "rgba(0,0,0,0.3)"} />
+                            <Text style={[styles.saveButtonText, !stopName && styles.saveButtonTextDisabled]}>
+                                Save & Continue
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 </GlassCard>
             </View>
@@ -89,18 +101,21 @@ const StopSelectionModal = ({ visible, onSelect, initialStop = '' }) => {
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        padding: 20,
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
     },
     modalContent: {
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 30,
         padding: 24,
-        paddingBottom: 40,
-        maxHeight: '60%',
+        paddingBottom: 32,
+        maxHeight: '80%',
     },
     header: {
         alignItems: 'center',
@@ -156,32 +171,65 @@ const styles = StyleSheet.create({
     },
     suggestionsList: {
         flexGrow: 0,
-        marginBottom: 32,
+        marginBottom: 24,
+        maxHeight: 200,
     },
-    chip: {
+    stopItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        marginRight: 10,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        marginBottom: 8,
+        gap: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    chipActive: {
-        backgroundColor: Colors.primary,
-        borderColor: Colors.primary,
+    stopItemActive: {
+        backgroundColor: 'rgba(56, 189, 248, 0.15)',
+        borderColor: 'rgba(56, 189, 248, 0.4)',
     },
-    chipText: {
+    stopItemText: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 13,
+        fontSize: 15,
         fontWeight: '500',
     },
-    chipTextActive: {
+    stopItemTextActive: {
         color: '#fff',
-        fontWeight: '700',
+        fontWeight: '600',
     },
     footer: {
         width: '100%',
+        alignItems: 'center',
+        paddingTop: 8,
+    },
+    saveButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 50,
+        gap: 10,
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    saveButtonDisabled: {
+        backgroundColor: 'rgba(255,255,255,0.3)',
+    },
+    saveButtonText: {
+        color: '#111',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    saveButtonTextDisabled: {
+        color: 'rgba(0,0,0,0.3)',
     },
 });
 

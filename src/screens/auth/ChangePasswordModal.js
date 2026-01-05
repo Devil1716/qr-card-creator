@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ACTIVITY_INDICATOR_Type, ActivityIndicator, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
+import * as Haptics from 'expo-haptics';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import GlassCard from '../../components/glass/GlassCard';
@@ -58,14 +59,11 @@ const ChangePasswordModal = ({ visible, onSuccess }) => {
                 requiresPasswordChange: false
             });
 
-            Alert.alert('Success', 'Password updated successfully!', [
-                {
-                    text: 'OK',
-                    onPress: () => {
-                        if (onSuccess) onSuccess();
-                    }
-                }
-            ]);
+            // Instant success - no blocking Alert
+            if (Platform.OS !== 'web') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            if (onSuccess) onSuccess();
 
         } catch (error) {
             console.error('Password change error:', error);

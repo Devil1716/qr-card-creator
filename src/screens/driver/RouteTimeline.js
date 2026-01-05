@@ -5,9 +5,47 @@ import { Colors } from '../../../constants/colors';
 import GlassCard from '../../components/glass/GlassCard';
 import routePrediction from '../../features/location/services/RoutePrediction';
 
-const RouteTimeline = ({ currentProgress = 0, nextStopId }) => {
-    // Get stops from the comprehensive route definition
-    const stops = useMemo(() => routePrediction.getStops(), []);
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
+
+const PulseDot = () => {
+    const opacity = useSharedValue(0.4);
+    const scale = useSharedValue(1);
+
+    React.useEffect(() => {
+        opacity.value = withRepeat(
+            withSequence(
+                withTiming(1, { duration: 800 }),
+                withTiming(0.4, { duration: 800 })
+            ),
+            -1,
+            true
+        );
+        scale.value = withRepeat(
+            withSequence(
+                withTiming(1.2, { duration: 800 }),
+                withTiming(1, { duration: 800 })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ scale: scale.value }]
+    }));
+
+    return (
+        <Animated.View style={[styles.pulseDot, animatedStyle]} />
+    );
+};
+
+const RouteTimeline = ({ currentProgress = 0, nextStopId, activeStops }) => {
+    // Get stops from the comprehensive route definition OR use passed active stops
+    const stops = useMemo(() => {
+        if (activeStops) return activeStops;
+        return routePrediction.getStops();
+    }, [activeStops]);
 
     // Determine active segment index
     // If nextStopId is null, we might be at start or end
@@ -29,7 +67,7 @@ const RouteTimeline = ({ currentProgress = 0, nextStopId }) => {
                 style={styles.scrollArea}
                 contentContainerStyle={styles.listContent}
             >
-                {stops.map((stop, index) => {
+                {stops.length > 0 ? stops.map((stop, index) => {
                     // Logic to determine state of each stop
                     // 0: Passed, 1: Active/Next, 2: Future
                     // This is a simplified logic, ideally we track 'passed' state more robustly
@@ -70,9 +108,7 @@ const RouteTimeline = ({ currentProgress = 0, nextStopId }) => {
                                     {status === 'passed' && (
                                         <Ionicons name="checkmark" size={10} color="#000" />
                                     )}
-                                    {status === 'next' && (
-                                        <View style={styles.pulseDot} />
-                                    )}
+                                    {status === 'next' && <PulseDot />}
                                 </View>
                             </View>
 
@@ -91,7 +127,12 @@ const RouteTimeline = ({ currentProgress = 0, nextStopId }) => {
                             </View>
                         </View>
                     );
-                })}
+                }) : (
+                    <View style={{ padding: 20, alignItems: 'center' }}>
+                        <Ionicons name="map" size={32} color="rgba(255,255,255,0.2)" />
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>No active stops.</Text>
+                    </View>
+                )}
             </ScrollView>
         </GlassCard>
     );
@@ -219,6 +260,12 @@ const styles = StyleSheet.create({
         color: Colors.primary,
         fontWeight: '600',
         marginTop: 2
+    },
+    pulseDot: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+        backgroundColor: Colors.primary
     }
 });
 

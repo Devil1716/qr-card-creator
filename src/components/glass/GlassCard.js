@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { Colors } from '../../constants/colors';
 
 const GlassCard = ({
@@ -10,6 +11,7 @@ const GlassCard = ({
     onPress,
     intensity = 40, // Deeper blur for One UI look
     width = '100%',
+    variant = 'default', // 'default' | 'prism'
     header,
     footer
 }) => {
@@ -33,16 +35,56 @@ const GlassCard = ({
         }).start();
     };
 
+    const isPrism = variant === 'prism';
+    const borderColors = isPrism ? Colors.gradients.prismBorder : Colors.gradients.glassBorder;
+    const shadowColor = isPrism ? 'rgba(0, 243, 255, 0.4)' : Colors.glass.shadow; // Cyan glow for prism
+
     const content = (
-        <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }], width }]}>
-            {/* 1px Gradient Border */}
+        <Animated.View
+            style={[
+                styles.container,
+                {
+                    transform: [{ scale: scaleAnim }],
+                    width,
+                    shadowColor: shadowColor
+                },
+                style // Apply layout styles here
+            ]}
+        >
+            {/* 1px (or 2px for prism) Gradient Border */}
             <LinearGradient
-                colors={Colors.gradients.glassBorder}
+                colors={borderColors}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.borderGradient, style]}
+                style={[styles.borderGradient, isPrism && { padding: 1.5 }]} // Thicker border for prism
             >
-                <View style={styles.innerContainer}>
+                <View style={[styles.innerContainer, isPrism && { borderRadius: 26.5 }]}>
+                    {/* Lighting Engine: Radial Gradient Overlay */}
+                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <Svg height="100%" width="100%">
+                            <Defs>
+                                <RadialGradient
+                                    id="grad"
+                                    cx="0"
+                                    cy="0"
+                                    rx="100%"
+                                    ry="100%"
+                                    gradientUnits="userSpaceOnUse"
+                                >
+                                    <Stop offset="0" stopColor="white" stopOpacity={isPrism ? "0.25" : "0.15"} />
+                                    <Stop offset="1" stopColor="white" stopOpacity="0" />
+                                </RadialGradient>
+                            </Defs>
+                            <Rect
+                                x="0"
+                                y="0"
+                                width="100%"
+                                height="100%"
+                                fill="url(#grad)"
+                            />
+                        </Svg>
+                    </View>
+
                     {Platform.OS === 'ios' ? (
                         <BlurView intensity={intensity} style={styles.blur} tint="dark">
                             <View style={styles.content}>
@@ -60,7 +102,6 @@ const GlassCard = ({
             </LinearGradient>
         </Animated.View>
     );
-
     if (onPress) {
         return (
             <TouchableOpacity

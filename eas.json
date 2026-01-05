@@ -7,9 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "gradleProperties": {
-          "org.gradle.jvmargs": "-Xmx4096m"
-        }
+        "buildType": "apk"
       },
       "ios": {
         "simulator": true
@@ -25,14 +23,10 @@
       "android": {
         "buildType": "apk"
       },
-      "ios": {
-        "bundleIdentifier": "com.qrcardcreator.app"
-      }
+      "ios": {}
     }
   },
   "submit": {
     "production": {}
   }
 }
-
-

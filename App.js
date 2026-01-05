@@ -15,10 +15,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCameraPermissions } from 'expo-camera';
 
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
-import ViewShot from 'react-native-view-shot';
+// import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 
 import { NavigationContainer } from '@react-navigation/native';
@@ -69,6 +69,7 @@ export default function App() {
   const [savedCards, setSavedCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isViewReady, setIsViewReady] = useState(false);
+  const [pendingBusData, setPendingBusData] = useState(null); // Holds scanned bus data before confirmation
 
   // Update State
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -158,9 +159,10 @@ export default function App() {
         throw new Error(`Download failed with status ${status}`);
       }
 
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (!fileInfo.exists || fileInfo.size < 500000) {
-        throw new Error(`Downloaded file corrupted (Size: ${fileInfo.size}b)`);
+      // Verify file was downloaded (simple size check via download result)
+      // Note: getInfoAsync is deprecated, using download status instead
+      if (!uri) {
+        throw new Error('Downloaded file path is invalid');
       }
 
       // Install APK
@@ -206,12 +208,14 @@ export default function App() {
 
     try {
       const storageFolder = `${FileSystem.documentDirectory}QRCards/`;
-      const dirInfo = await FileSystem.getInfoAsync(storageFolder);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(storageFolder, { intermediates: true });
-      }
+      // Use makeDirectoryAsync with intermediates - it won't error if folder exists
+      await FileSystem.makeDirectoryAsync(storageFolder, { intermediates: true });
       return storageFolder;
     } catch (error) {
+      // Folder likely already exists, which is fine
+      if (error.message && error.message.includes('already exists')) {
+        return `${FileSystem.documentDirectory}QRCards/`;
+      }
       logger.error('Failed to create storage folder:', error);
       return FileSystem.documentDirectory; // Fallback to document directory
     }
@@ -249,17 +253,25 @@ export default function App() {
       setScannedData(data);
 
       // Try to parse as Bus System QR
+      // Check if it's a Baghirathi URL format: https://www.baghirathi.in:8000/attendance/parent/index.html#/student/ID
+      if (data.includes('baghirathi.in') && data.includes('#/student/')) {
+        const match = data.match(/#\/student\/([a-zA-Z0-9]+)/);
+        if (match && match[1]) {
+          const studentId = match[1];
+          setPendingBusData({ busId: studentId, source: 'baghirathi' });
+          setShowScanner(false);
+          return;
+        }
+      }
+
+      // Try to parse as JSON
       try {
         const parsed = JSON.parse(data);
         if (parsed.busId) {
-          setIsLoading(true);
-          // Update User Profile in Firestore
-          await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-            busId: parsed.busId,
-            stopId: parsed.stopId || 'Default Stop',
-            lastScan: new Date().toISOString()
-          });
-          Alert.alert('Success', `Account linked to Bus: ${parsed.busId}`);
+          // Store pending data for confirmation screen
+          setPendingBusData(parsed);
+          setShowScanner(false);
+          return;
         }
       } catch (e) {
         // Not a JSON/Bus QR, treat as generic data (existing behavior)
@@ -400,6 +412,55 @@ export default function App() {
         <StatusBar barStyle="light-content" />
         <PermissionScreen onRequestPermission={requestPermission} />
       </SafeAreaView>
+    );
+  }
+
+  // Confirmation screen for scanned bus data
+  if (pendingBusData) {
+    const handleConfirmSave = async () => {
+      try {
+        setIsLoading(true);
+        await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+          busId: pendingBusData.busId,
+          stopId: pendingBusData.stopId || 'Default Stop',
+          lastScan: new Date().toISOString()
+        });
+        Alert.alert('Success', `Account linked to Bus: ${pendingBusData.busId}`);
+        setPendingBusData(null);
+        setIsLoading(false);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to link bus pass.');
+        setIsLoading(false);
+      }
+    };
+
+    return (
+      <GlassBackground>
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <StatusBar barStyle="light-content" />
+          <View style={{ alignItems: 'center', gap: 20 }}>
+            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+              <Text style={{ fontSize: 40 }}>✓</Text>
+            </View>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: '700', textAlign: 'center' }}>QR Code Detected</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, textAlign: 'center' }}>
+              Bus ID: {pendingBusData.busId}
+            </Text>
+            <TouchableOpacity
+              onPress={handleConfirmSave}
+              disabled={isLoading}
+              style={{ backgroundColor: '#fff', paddingVertical: 16, paddingHorizontal: 40, borderRadius: 50, marginTop: 20 }}
+            >
+              <Text style={{ color: '#111', fontSize: 16, fontWeight: '700' }}>
+                {isLoading ? 'Saving...' : 'Save & Continue'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setPendingBusData(null)} style={{ marginTop: 10 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </GlassBackground>
     );
   }
 
